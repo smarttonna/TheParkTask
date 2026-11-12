@@ -42,13 +42,20 @@ if (!('closedBy' in HTMLDialogElement.prototype)) {
 }
 
 // ==========================================================================
-// 2. PROCEDURAL WEBAUDIO: ULTRASONIC REVERSE RADAR & COLLISION THUD
+// 2. PROCEDURAL WEBAUDIO: ENGINE IDLE/THROTTLE, REVERSE WHINE, RADAR & UI SFX
 // ==========================================================================
 class ParkingAudio {
   constructor() {
     this.ctx = null;
     this.enabled = true;
     this.lastBeepTime = 0;
+    this.engineStarted = false;
+    this.engineOsc = null;
+    this.engineSub = null;
+    this.engineFilter = null;
+    this.engineGain = null;
+    this.revOsc = null;
+    this.revGain = null;
   }
 
   init() {
@@ -58,6 +65,121 @@ class ParkingAudio {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+    if (this.ctx && !this.engineStarted) {
+      this.startEngineNodes();
+    }
+  }
+
+  startEngineNodes() {
+    this.engineStarted = true;
+    const t = this.ctx.currentTime;
+
+    // Warm low-pass filtered engine sawtooth + sub-harmonic sine
+    this.engineFilter = this.ctx.createBiquadFilter();
+    this.engineFilter.type = 'lowpass';
+    this.engineFilter.frequency.setValueAtTime(180, t);
+
+    this.engineGain = this.ctx.createGain();
+    this.engineGain.gain.setValueAtTime(0, t);
+
+    this.engineOsc = this.ctx.createOscillator();
+    this.engineOsc.type = 'sawtooth';
+    this.engineOsc.frequency.setValueAtTime(46, t);
+
+    this.engineSub = this.ctx.createOscillator();
+    this.engineSub.type = 'sine';
+    this.engineSub.frequency.setValueAtTime(23, t);
+
+    this.engineOsc.connect(this.engineFilter);
+    this.engineSub.connect(this.engineFilter);
+    this.engineFilter.connect(this.engineGain);
+    this.engineGain.connect(this.ctx.destination);
+
+    this.engineOsc.start(t);
+    this.engineSub.start(t);
+
+    // Subtle transmission reverse whine
+    this.revGain = this.ctx.createGain();
+    this.revGain.gain.setValueAtTime(0, t);
+    this.revOsc = this.ctx.createOscillator();
+    this.revOsc.type = 'sine';
+    this.revOsc.frequency.setValueAtTime(340, t);
+    this.revOsc.connect(this.revGain);
+    this.revGain.connect(this.ctx.destination);
+    this.revOsc.start(t);
+  }
+
+  updateEngine(speed, isAccelerating) {
+    if (!this.ctx || !this.engineStarted) return;
+    const t = this.ctx.currentTime;
+    if (!this.enabled) {
+      this.engineGain.gain.setTargetAtTime(0, t, 0.05);
+      this.revGain.gain.setTargetAtTime(0, t, 0.05);
+      return;
+    }
+
+    const ratio = Math.min(1, Math.abs(speed) / 175);
+    const rpmHz = 44 + ratio * 68 + (isAccelerating ? 10 : 0);
+    this.engineOsc.frequency.setTargetAtTime(rpmHz, t, 0.06);
+    this.engineSub.frequency.setTargetAtTime(rpmHz * 0.5, t, 0.06);
+    this.engineFilter.frequency.setTargetAtTime(160 + ratio * 240, t, 0.08);
+    this.engineGain.gain.setTargetAtTime(0.028 + ratio * 0.045, t, 0.08);
+
+    // Reverse transmission whine when moving backwards
+    if (speed < -6) {
+      this.revOsc.frequency.setTargetAtTime(330 + ratio * 180, t, 0.06);
+      this.revGain.gain.setTargetAtTime(0.012 + ratio * 0.018, t, 0.06);
+    } else {
+      this.revGain.gain.setTargetAtTime(0, t, 0.06);
+    }
+  }
+
+  setEnabled(val) {
+    this.enabled = val;
+    if (!val && this.ctx && this.engineStarted) {
+      const t = this.ctx.currentTime;
+      this.engineGain.gain.setTargetAtTime(0, t, 0.04);
+      this.revGain.gain.setTargetAtTime(0, t, 0.04);
+    } else if (val) {
+      this.init();
+      this.playUiClick();
+    }
+  }
+
+  playGearShift() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(240, t);
+    osc.frequency.exponentialRampToValueAtTime(110, t + 0.045);
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.055);
+  }
+
+  playUiClick() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(760, t);
+    osc.frequency.exponentialRampToValueAtTime(480, t + 0.03);
+    gain.gain.setValueAtTime(0.045, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.04);
   }
 
   updateRadar(minDistPx, isReversing) {
@@ -665,7 +787,10 @@ function updatePhysics(dt) {
   if (gear !== 'N' && gear !== lastGear) {
     if (lastGear !== 'N') reversals++;
     lastGear = gear;
+    sfx.playGearShift();
   }
+
+  sfx.updateEngine(CAR.speed, keys.up || keys.down);
 
   // Save previous pose for collision rollback
   const prevX = CAR.x;
@@ -1129,12 +1254,18 @@ function toggleAmbience() {
 ambBtn.addEventListener('click', toggleAmbience);
 document.getElementById('menuAmbBtn').addEventListener('click', toggleAmbience);
 
-// Sound toggle
+// Sound toggle & first-gesture audio unlock
 const soundBtn = document.getElementById('sound2');
 soundBtn.addEventListener('click', () => {
-  sfx.enabled = !sfx.enabled;
+  sfx.setEnabled(!sfx.enabled);
   soundBtn.setAttribute('aria-pressed', String(sfx.enabled));
   document.getElementById('soundWaves').style.opacity = sfx.enabled ? '1' : '0.2';
+});
+
+['keydown', 'pointerdown'].forEach((evt) => {
+  window.addEventListener(evt, () => {
+    if (sfx.enabled) sfx.init();
+  }, { once: true });
 });
 
 // Reset & Navigation buttons
