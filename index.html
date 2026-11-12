@@ -215,18 +215,49 @@
     </div>
   </nav>
 
-  <!-- Bottom-Right Touch / Mouse Analogue Steering & Pedal Cluster -->
+  <!-- Bottom-Right Touch / Mouse Steering Wheel & Pedal Cluster -->
   <div id="drivePad" class="drive-pad glass-panel" aria-label="On-screen driving controls">
     <div class="pad-steer">
-      <div id="steerStick" class="steer-stick" role="slider" aria-label="Analogue steering controller" aria-valuemin="-36" aria-valuemax="36" aria-valuenow="0" tabindex="0">
-        <span class="stick-track-line" aria-hidden="true"></span>
-        <span class="stick-center-tick" aria-hidden="true"></span>
-        <div class="stick-knob" id="steerKnob">
-          <span id="stickReadout">0°</span>
+      <div id="steerWheel" class="steer-wheel" role="slider" aria-label="Steering wheel" aria-valuemin="-36" aria-valuemax="36" aria-valuenow="0" tabindex="0">
+        <div id="steerWheelRotor" class="steer-rotor">
+          <svg viewBox="0 0 120 120" class="wheel-svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="rimGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#3a3d45"/>
+                <stop offset="50%" stop-color="#191b20"/>
+                <stop offset="100%" stop-color="#2c2f36"/>
+              </linearGradient>
+              <linearGradient id="spokeGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#5a5f6b"/>
+                <stop offset="100%" stop-color="#23262d"/>
+              </linearGradient>
+            </defs>
+            <!-- Outer steering wheel rim -->
+            <circle cx="60" cy="60" r="49" fill="none" stroke="url(#rimGrad)" stroke-width="13"/>
+            <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
+            <circle cx="60" cy="60" r="42.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+            <!-- 12 o'clock center alignment stripe -->
+            <rect x="56.5" y="4.5" width="7" height="13" rx="2" fill="#ffc570"/>
+            <!-- 3 sports spokes (left, right, bottom) -->
+            <path d="M16 55 L42 56 L42 66 L16 65 Z" fill="url(#spokeGrad)" stroke="rgba(255,255,255,0.16)" stroke-width="0.8"/>
+            <path d="M104 55 L78 56 L78 66 L104 65 Z" fill="url(#spokeGrad)" stroke="rgba(255,255,255,0.16)" stroke-width="0.8"/>
+            <path d="M53 76 L67 76 L64 104 L56 104 Z" fill="url(#spokeGrad)" stroke="rgba(255,255,255,0.16)" stroke-width="0.8"/>
+            <!-- Center horn hub with Garuda P emblem -->
+            <circle cx="60" cy="60" r="20" fill="#17181d" stroke="rgba(255,197,112,0.7)" stroke-width="1.6"/>
+            <circle cx="60" cy="60" r="16.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+            <path d="M49 52 L60 47 L71 52 L69 65 L60 72 L51 65 Z" fill="rgba(162, 16, 36, 0.88)" stroke="#ffc570" stroke-width="1.2"/>
+            <text x="60" y="64" text-anchor="middle" fill="#ffe1a8" font-family="Geist Mono, monospace" font-weight="800" font-size="13">P</text>
+          </svg>
         </div>
+        <span id="stickReadout" class="wheel-deg-badge">0°</span>
       </div>
     </div>
-    <div class="pad-pedals" role="group" aria-label="Drive and reverse pedals">
+    <div class="pad-pedals" role="group" aria-label="Park, Reverse, and Drive pedals">
+      <button type="button" class="pad-btn pedal-pad pad-park" id="btnPark" aria-label="Park and Brake">
+        <span class="pedal-tread" aria-hidden="true"></span>
+        <span class="pedal-label">P</span>
+        <span class="pedal-sub">PARK</span>
+      </button>
       <button type="button" class="pad-btn pedal-pad pad-rev" id="btnRev" aria-label="Reverse">
         <span class="pedal-tread" aria-hidden="true"></span>
         <span class="pedal-label">R</span>

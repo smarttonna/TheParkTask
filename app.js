@@ -794,9 +794,9 @@ function updatePhysics(dt) {
     else CAR.speed -= Math.sign(CAR.speed) * drag * dt;
   }
 
-  // Track gear reversals
-  const gear = CAR.speed > 5 ? 'D' : CAR.speed < -5 ? 'R' : 'N';
-  if (gear !== 'N' && gear !== lastGear) {
+  // Track gear reversals & Park brake state
+  const gear = keys.brake ? 'P' : CAR.speed > 5 ? 'D' : CAR.speed < -5 ? 'R' : 'N';
+  if (gear !== 'N' && gear !== 'P' && gear !== lastGear) {
     if (lastGear !== 'N') reversals++;
     lastGear = gear;
     sfx.playGearShift();
@@ -1331,56 +1331,73 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') keys.brake = false;
 });
 
-// On-Screen Touch / Pointer Analogue Steering & Pedals
+// On-Screen Touch / Pointer Rotational Steering Wheel & Pedals (P / R / D)
 let analogueSteer = null;
 let stickSpringing = false;
-const steerStickEl = document.getElementById('steerStick');
-const steerKnobEl = document.getElementById('steerKnob');
+const steerWheelEl = document.getElementById('steerWheel');
+const steerRotorEl = document.getElementById('steerWheelRotor');
 const stickReadoutEl = document.getElementById('stickReadout');
 
 function syncStickVisual() {
-  if (!steerStickEl || !steerKnobEl) return;
-  const maxTravel = Math.max(24, (steerStickEl.clientWidth - steerKnobEl.clientWidth) / 2 - 4);
+  if (!steerWheelEl || !steerRotorEl) return;
   const norm = CAR.steer / CAR.maxSteer;
-  steerKnobEl.style.setProperty('--stick-x', `${(norm * maxTravel).toFixed(1)}px`);
+  const wheelDeg = norm * 180;
+  steerRotorEl.style.setProperty('--wheel-deg', `${wheelDeg.toFixed(1)}deg`);
   const deg = Math.round((CAR.steer * 180) / Math.PI);
   if (stickReadoutEl) stickReadoutEl.textContent = `${deg > 0 ? '+' : ''}${deg}°`;
-  steerStickEl.setAttribute('aria-valuenow', String(deg));
+  steerWheelEl.setAttribute('aria-valuenow', String(deg));
 }
 
-if (steerStickEl) {
-  const updateFromPointer = (e) => {
-    const rect = steerStickEl.getBoundingClientRect();
-    const maxTravel = Math.max(24, (rect.width - 44) / 2 - 4);
-    const dx = e.clientX - (rect.left + rect.width / 2);
-    analogueSteer = Math.max(-1, Math.min(1, dx / maxTravel));
+if (steerWheelEl) {
+  let lastPointerAngle = 0;
+  let wheelLockNorm = 0;
+
+  const getPointerAngle = (e) => {
+    const rect = steerWheelEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    if (Math.hypot(dx, dy) < 6) return null;
+    return Math.atan2(dy, dx);
   };
 
-  steerStickEl.addEventListener('pointerdown', (e) => {
+  steerWheelEl.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    steerStickEl.setPointerCapture(e.pointerId);
-    steerStickEl.classList.add('dragging');
+    steerWheelEl.setPointerCapture(e.pointerId);
+    steerWheelEl.classList.add('dragging');
     stickSpringing = false;
     if (sfx.enabled) sfx.init();
-    updateFromPointer(e);
+    wheelLockNorm = CAR.steer / CAR.maxSteer;
+    analogueSteer = wheelLockNorm;
+    const angle = getPointerAngle(e);
+    lastPointerAngle = angle !== null ? angle : 0;
   });
 
-  steerStickEl.addEventListener('pointermove', (e) => {
+  steerWheelEl.addEventListener('pointermove', (e) => {
     if (analogueSteer === null) return;
-    updateFromPointer(e);
+    const angle = getPointerAngle(e);
+    if (angle === null) return;
+    let dAngle = angle - lastPointerAngle;
+    while (dAngle > Math.PI) dAngle -= Math.PI * 2;
+    while (dAngle < -Math.PI) dAngle += Math.PI * 2;
+    lastPointerAngle = angle;
+    wheelLockNorm = Math.max(-1, Math.min(1, wheelLockNorm + dAngle / Math.PI));
+    analogueSteer = wheelLockNorm;
   });
 
-  const releaseStick = () => {
+  const releaseWheel = () => {
     if (analogueSteer !== null) stickSpringing = true;
     analogueSteer = null;
-    steerStickEl.classList.remove('dragging');
+    steerWheelEl.classList.remove('dragging');
   };
-  steerStickEl.addEventListener('pointerup', releaseStick);
-  steerStickEl.addEventListener('pointercancel', releaseStick);
+  steerWheelEl.addEventListener('pointerup', releaseWheel);
+  steerWheelEl.addEventListener('pointercancel', releaseWheel);
 }
 
 function bindPadBtn(id, keyProp) {
   const el = document.getElementById(id);
+  if (!el) return;
   const on = (e) => {
     e.preventDefault();
     if (sfx.enabled) sfx.init();
@@ -1393,6 +1410,7 @@ function bindPadBtn(id, keyProp) {
   el.addEventListener('pointercancel', off);
   el.addEventListener('pointerleave', off);
 }
+bindPadBtn('btnPark', 'brake');
 bindPadBtn('btnGas', 'up');
 bindPadBtn('btnRev', 'down');
 
