@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>GARUDA 2026 — Precision Parking & Reverse Academy | AniWeb</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Geist+Mono:wght@400;500;600;700&family=Geist:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Lexend+Giga:wght@600&family=Montserrat:wght@900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-glass="liquid" data-cam="follow" class="in-place">
+
+  <!-- ====================================================================
+       1. FULL-VIEWPORT 2.5D DRIVING & PARKING CANVAS STAGE (#app)
+       ==================================================================== -->
+  <main id="app" aria-label="Precision Parking & Reverse Training Stage">
+    <canvas id="gameCanvas"></canvas>
+  </main>
+
+  <!-- ====================================================================
+       2. TOP PERIMETER HUD HEADER (header.top)
+       ==================================================================== -->
+  <header class="top">
+    <a class="logo" href="#reset" id="resetBtnLink" title="Restart current bay (R)">
+      <span class="logo-shield" aria-hidden="true">P</span>
+      <span>GARUDA DRIVE</span>
+      <small>REVERSE ACADEMY</small>
+    </a>
+
+    <div class="brand">
+      <p class="brand-kicker" id="hudLevelKicker">BAY 01 · 90° REVERSE PARK</p>
+      <div class="champs" aria-label="PARK PRO">
+        <span class="ch-gold" aria-hidden="true">PRECISION</span>
+        <span class="ch-face">PRECISION</span>
+      </div>
+    </div>
+
+    <div class="nav right">
+      <button type="button" id="guideBtn" class="gl-btn active" aria-pressed="true" title="Toggle Ackermann steering trajectory guides">
+        <span>GUIDE: ON</span>
+      </button>
+
+      <div id="views" class="rn-seg wl-views" role="group" aria-label="Camera mode">
+        <i class="rn-thumb" id="viewThumb"></i>
+        <button type="button" class="rn-opt on" data-cam="follow">FOLLOW</button>
+        <button type="button" class="rn-opt" data-cam="wide">WIDE</button>
+        <button type="button" class="rn-opt" data-cam="tight">CLOSE</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Coaching Cue Pill (Centered below header) -->
+  <div id="coachCue" class="coach-cue glass-panel" role="status" aria-live="polite">
+    <span class="cue-dot"></span>
+    <span id="coachCueText">Align rear axle with Bay 01 entrance, then reverse smoothly.</span>
+  </div>
+
+  <!-- Stage Passed Celebration Sign -->
+  <div id="passSign" class="pass-sign glass-panel" role="status" aria-live="assertive">
+    <span class="pass-badge">✓ STAGE PASSED</span>
+    <strong id="passSignTitle">BAY 01 CLEARED</strong>
+  </div>
+
+  <!-- ====================================================================
+       3. TOP-RIGHT MENU TRIGGER & CLIP-PATH MORPH DRAWER
+       ==================================================================== -->
+  <button type="button" id="menuBtn" class="rn-round" aria-label="Toggle menu" aria-expanded="false" aria-controls="mainMenu">
+    <svg class="mn-i mn-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="4" y1="7" x2="20" y2="7"></line>
+      <line x1="4" y1="12" x2="20" y2="12"></line>
+      <line x1="8" y1="17" x2="20" y2="17"></line>
+    </svg>
+    <svg class="mn-i mn-shut" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+    </svg>
+  </button>
+
+  <nav id="mainMenu" class="mn-panel espresso-card" aria-label="Academy Menu">
+    <p class="mn-k" style="--i:0">DRIVING ACADEMY · GARUDA 2026</p>
+    <div class="mn-list">
+      <button type="button" class="mn-go" style="--i:1" commandfor="stagesModal" command="show-modal">
+        <span class="mn-num">01</span>
+        <span class="mn-t">All 108 Real-Life Stages</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:2" commandfor="manualModal" command="show-modal">
+        <span class="mn-num">02</span>
+        <span class="mn-t">Reverse &amp; Pivot Guide</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:3" id="menuRestartBtn">
+        <span class="mn-num">03</span>
+        <span class="mn-t">Restart Current Bay</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:4" id="menuShowStatsBtn">
+        <span class="mn-num">04</span>
+        <span class="mn-t">Bay Telemetry Sheet</span>
+      </button>
+    </div>
+
+    <div class="mn-rule" style="--i:4"></div>
+    <p class="mn-k" style="--i:5">CONTROLS &amp; AMBIENCE</p>
+    <p class="mn-controls-hint" style="--i:6">
+      <b>W / ↑</b> Drive &nbsp;·&nbsp; <b>S / ↓</b> Brake / Reverse<br/>
+      <b>A D / ← →</b> Steer &nbsp;·&nbsp; <b>SPACE</b> Handbrake &nbsp;·&nbsp; <b>R</b> Reset
+    </p>
+    <div class="mn-actions" style="--i:7">
+      <button type="button" class="mn-chip" id="menuAmbBtn">DAY / NIGHT LOT</button>
+      <button type="button" class="mn-chip" id="menuGuideBtn">TOGGLE GUIDES</button>
+    </div>
+  </nav>
+
+  <!-- ====================================================================
+       4. SWISS EDITORIAL TELEMETRY DOSSIER (aside#sheet)
+       ==================================================================== -->
+  <aside id="sheet" class="sheet glass-panel" aria-label="Parking Telemetry Dossier">
+    <div class="sh-run">
+      <span class="sh-field">PARKING TELEMETRY <em id="shBadge">BAY CLEARED</em></span>
+      <span class="sh-page"><b id="shPageIdx">01</b> / <span id="shPageTotal">06</span></span>
+    </div>
+
+    <div class="sh-frame">
+      <!-- Left Column: Precision Score Stamp + Dotted-Leader Facts -->
+      <div class="sh-col-a">
+        <header class="sh-title">
+          <div class="sh-stamp">
+            <span class="st-flag" aria-hidden="true"></span>
+            <i></i>
+            <b id="shGrade">A+</b>
+          </div>
+          <div class="sh-h">
+            <p class="sh-pos" id="shSub">BAY 01 · PRECISION</p>
+            <h2 id="shTitle">90° Reverse <b>Bay</b></h2>
+            <span class="sh-rail" id="shScoreText">96% ALIGNMENT ACCURACY</span>
+          </div>
+        </header>
+
+        <dl class="sh-facts" id="shFacts">
+          <!-- Populated dynamically -->
+        </dl>
+      </div>
+
+      <!-- Right Column: Fig. 1 Clearance Bars + Coach Debrief -->
+      <div class="sh-col-b">
+        <section class="sh-fig">
+          <p class="sh-k"><span>Fig. 1</span> BAY CLEARANCE &amp; STEERING METRICS</p>
+          <div class="fr-scale"><span>0%</span><span>33%</span><span>66%</span><span>100%</span></div>
+          <div class="fr-rows" id="shMetrics">
+            <!-- Populated dynamically -->
+          </div>
+          <p class="sh-sum" id="shSummary">0 COLLISIONS · CLEAN ENTRY</p>
+        </section>
+
+        <section class="sh-note">
+          <span>INSTRUCTOR DEBRIEF</span>
+          <p id="shDebrief"></p>
+          <p class="sh-final" id="shTip"></p>
+        </section>
+      </div>
+    </div>
+
+    <p class="sh-cap">ACKERMANN KINEMATICS · ULTRASONIC BUMPER RADAR · GARUDA DRIVE TELEMETRY</p>
+
+    <div class="sh-ctrl">
+      <button type="button" class="btn-gold" id="shNextBayBtn" style="flex:1">NEXT TRAINING BAY →</button>
+      <button type="button" class="sh-btn" id="shRetryBtn" style="flex:0.65">RETRY BAY</button>
+    </div>
+  </aside>
+
+  <!-- ====================================================================
+       5. BOTTOM PERIMETER HUD: UTILITIES, BAY DOCK, TELEMETRY & MARQUEE
+       ==================================================================== -->
+  <div class="hud-bottom-left">
+    <button type="button" id="sound2" class="rn-round" aria-label="Toggle engine & radar sound" aria-pressed="true" title="Engine & Proximity Radar Audio">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+        <path id="soundWaves" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+      </svg>
+    </button>
+    <button type="button" id="ambBtn" class="rn-round" data-mode="day" aria-label="Toggle Day or Night lot" title="Toggle Day / Night Headlights">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+      </svg>
+    </button>
+    <button type="button" id="resetHudBtn" class="rn-round" aria-label="Reset car position" title="Reset Bay (R)">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"></polyline>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Bottom-Center Level Dock & Live Vehicle Telemetry -->
+  <nav id="strip" class="wl-strip" aria-label="Training bay selector">
+    <div class="ws-head">
+      <p class="ws-name" id="dockTitle"><b>001</b>Morning Driveway Reverse</p>
+      <p class="ws-pos" id="dockTelemetry">GEAR: N · 0 KM/H · STEER: 0° · RADAR: CLEAR</p>
+    </div>
+    <div class="ws-track">
+      <button type="button" class="rn-round ws-prev" id="dockPrevBtn" aria-label="Previous stage">‹</button>
+      <div class="rn-seg ws-cells" id="dockCells">
+        <i class="ws-thumb" id="dockThumb"></i>
+        <!-- 12-stage chapter window injected by app.js -->
+      </div>
+      <button type="button" class="rn-round ws-next" id="dockNextBtn" aria-label="Next stage">›</button>
+      <button type="button" class="gl-btn" style="height:44px;padding:0 14px;font-size:10px" commandfor="stagesModal" command="show-modal" title="Browse all 108 real-life stages">
+        <span>108 STAGES</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Bottom-Right Touch / Mouse Steering & Pedal Cluster -->
+  <div id="drivePad" class="drive-pad glass-panel" aria-label="On-screen driving controls">
+    <div class="pad-steer">
+      <button type="button" class="pad-btn" id="btnLeft" aria-label="Steer Left">◀</button>
+      <button type="button" class="pad-btn" id="btnRight" aria-label="Steer Right">▶</button>
+    </div>
+    <div class="pad-pedals">
+      <button type="button" class="pad-btn pad-gas" id="btnGas" aria-label="Drive Forward">D ▲</button>
+      <button type="button" class="pad-btn pad-rev" id="btnRev" aria-label="Reverse">R ▼</button>
+    </div>
+  </div>
+
+  <!-- Crimson Broadcast Ticker -->
+  <footer class="marquee" aria-label="Driving Instructor Tips">
+    <div class="track">
+      <span>GARUDA REVERSE ACADEMY <em>— Watch your Rear Axle Pivot Point —</em> FULL LOCK BEFORE ENTRY · STRAIGHTEN WHEEL ONCE PARALLEL · LISTEN TO ULTRASONIC BUMPER RADAR CHIMES · USE [W A S D] OR ARROW KEYS + [SPACE] HANDBRAKE ·</span>
+      <span aria-hidden="true">GARUDA REVERSE ACADEMY <em>— Watch your Rear Axle Pivot Point —</em> FULL LOCK BEFORE ENTRY · STRAIGHTEN WHEEL ONCE PARALLEL · LISTEN TO ULTRASONIC BUMPER RADAR CHIMES · USE [W A S D] OR ARROW KEYS + [SPACE] HANDBRAKE ·</span>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       6. COACH'S REVERSE & PIVOT MANUAL MODAL
+       ==================================================================== -->
+  <dialog id="manualModal" class="garuda-modal" closedby="any" aria-labelledby="mfTitle">
+    <div class="mf-panel glass-panel">
+      <div class="mf-door">
+        <div>
+          <p class="mn-k" style="color:var(--gold-bright)">ACKERMANN KINEMATICS</p>
+          <p style="font:500 13px/1.5 'Geist',sans-serif;color:var(--dim);margin:0">
+            Unlike a shopping cart, a car steers from the front wheels and pivots around the <b>rear axle</b>.
+          </p>
+        </div>
+        <div class="mf-sigs" style="grid-template-columns:1fr;gap:10px;font-style:normal;font-family:'Geist Mono',monospace;font-size:12px">
+          <span>01 · REAR AXLE = PIVOT</span>
+          <span>02 · FRONT SWINGS WIDE IN REVERSE</span>
+          <span>03 · 45° ANGLE = COUNTER-STEER</span>
+          <span>04 · CENTER WHEEL TO FINISH</span>
+        </div>
+        <p class="mn-k" style="margin:0">GARUDA DRIVE · MODULE 01</p>
+      </div>
+
+      <div class="mf-rule" aria-hidden="true">
+        <div class="mf-seal">PRO</div>
+      </div>
+
+      <div class="mf-words">
+        <div>
+          <p class="mn-k" style="color:var(--gold-bright)">01 · THE SCIENCE OF TIGHT CORNERS</p>
+          <h2 id="mfTitle" class="mf-title">Master the Pivot, Own Any Tight Spot.</h2>
+          <blockquote class="mf-quote">
+            “When reversing, your front bumper swings outward—always check your outside front corner before committing to full lock.”
+          </blockquote>
+          <div class="mf-cols">
+            <p>
+              <b>90° Reverse Bay:</b> Pull past the target bay until your rear axle aligns with the near edge of the bay. Turn full lock toward the bay, watch the dashed gold trajectory arc, and straighten the wheel as soon as your body is parallel.
+            </p>
+            <p>
+              <b>Tight Parallel Park:</b> Pull alongside the front car, reverse at full lock until your car reaches a <b>45° angle</b>, then counter-steer full lock the opposite way so your front nose tucks cleanly behind the lead car without clipping the curb.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:16px">
+          <button type="button" class="btn-gold" commandfor="manualModal" command="close">
+            BACK TO DRIVER SEAT
+          </button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ====================================================================
+       7. ALL 108 REAL-LIFE STAGES BROWSER MODAL
+       ==================================================================== -->
+  <dialog id="stagesModal" class="garuda-modal" closedby="any" aria-labelledby="stagesTitle">
+    <div class="gal-panel glass-panel">
+      <div class="gal-head">
+        <div>
+          <p class="mn-k" style="color:var(--gold-bright);margin-bottom:4px" id="stagesProgress">0 / 108 REAL-LIFE SCENARIOS CLEARED</p>
+          <h2 id="stagesTitle" class="gal-title">Real-Life Parking &amp; Reverse Scenarios</h2>
+        </div>
+        <div class="gal-controls">
+          <input type="search" id="stageSearch" class="gal-search" placeholder="Search airport, grocery, alley, parallel…" aria-label="Search 108 stages" />
+          <button type="button" class="rn-round" commandfor="stagesModal" command="close" aria-label="Close stage browser">✕</button>
+        </div>
+      </div>
+      <div class="stage-cats" id="stageCats"></div>
+      <div class="gal-grid" id="stagesGrid"></div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
