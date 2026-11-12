@@ -467,6 +467,11 @@ body.bay-passed .pass-sign {
   transform: translateX(-50%) translateY(0) scale(1);
 }
 
+body.bay-passed .coach-cue {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .pass-badge {
   padding: 4px 10px;
   border-radius: 999px;
@@ -1634,10 +1639,19 @@ dialog.garuda-modal::backdrop {
   }
 
   .pass-sign {
-    top: calc(max(12px, env(safe-area-inset-top)) + 98px);
-    max-width: calc(100vw - 28px);
-    padding: 8px 14px;
-    font-size: 12px;
+    top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+    width: max-content;
+    max-width: calc(100vw - 124px);
+    padding: 10px 14px;
+    border-radius: 18px;
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+  }
+
+  .pass-sign strong {
+    font-size: 12.5px;
+    line-height: 1.25;
   }
 
   /* Move utility buttons to compact right-edge vertical column */
