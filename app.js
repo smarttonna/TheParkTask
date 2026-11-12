@@ -447,8 +447,8 @@ function buildAllStages() {
         // Tight Parallel Curb
         const gap = 138 - tight * 1.4;
         stage.start = { x: 125, y: -12, angle: 0 };
-        stage.target = { x: 0, y: -76, angle: 0, w: 126 - tight, h: 58 - Math.round(tight / 2) };
-        stage.coachCue = `${name} ${surname}: Reverse full-lock LEFT to 45°, then counter-steer RIGHT.`;
+        stage.target = { x: 0, y: -76, angle: 0, w: 58 - Math.round(tight / 2), h: 126 - tight };
+        stage.coachCue = `${name} ${surname}: Parallel park between the 2 cars — shift R, steer into slot, then straighten.`;
         stage.tip = `COACH TIP (${context}): Wait until your front bumper clears the lead car before counter-steering.`;
         stage.obstacles = [
           { x: 0, y: -126, w: 480, h: 24, type: 'curb' },
@@ -459,7 +459,7 @@ function buildAllStages() {
         // 90° Blind Corner / Pillar Alley
         stage.start = { x: -185, y: 125, angle: 0 };
         stage.target = { x: 130, y: -56, angle: -Math.PI / 2, w: 66 - Math.round(tight / 2), h: 118 - tight };
-        stage.coachCue = `${name} ${surname}: Clear the corner pillar with your rear axle before turning.`;
+        stage.coachCue = `${name} ${surname}: Park in the corner bay on the right — clear the pillar before turning.`;
         stage.tip = `COACH TIP (${context}): Turning too early around a pillar clips the rear quarter panel.`;
         stage.obstacles = [
           { x: 130, y: -136, w: 190, h: 22, type: 'wall' },
@@ -471,7 +471,7 @@ function buildAllStages() {
         // 45° Angled Diagonal Reverse
         stage.start = { x: -195, y: 105, angle: 0 };
         stage.target = { x: 45, y: -62, angle: -Math.PI / 4, w: 68 - tight, h: 120 - tight };
-        stage.coachCue = `${name} ${surname}: Use half-lock steering in Reverse to glide into the 45° bay.`;
+        stage.coachCue = `${name} ${surname}: Reverse into the 45° angled bay between the parked cars.`;
         stage.tip = `COACH TIP (${context}): Diagonal slots need smooth 18–22° lock rather than full lock.`;
         stage.obstacles = [
           { x: 0, y: -146, w: 460, h: 20, type: 'curb' },
@@ -483,8 +483,8 @@ function buildAllStages() {
         // S-Curve Cone/Bollard Reverse Chicane
         const shift = (eIdx % 2 === 0 ? 1 : -1) * 16;
         stage.start = { x: -240, y: 80, angle: Math.PI };
-        stage.target = { x: 205, y: -45, angle: Math.PI, w: 120 - tight, h: 66 - Math.round(tight / 2) };
-        stage.coachCue = `${name} ${surname}: Reverse slowly through the cones using your trajectory arcs.`;
+        stage.target = { x: 205, y: -45, angle: Math.PI, w: 66 - Math.round(tight / 2), h: 120 - tight };
+        stage.coachCue = `${name} ${surname}: Shift to R and weave through the cones to the end bay.`;
         stage.tip = `COACH TIP (${context}): Keep speed under 10 km/h when threading tight bollards in reverse.`;
         stage.obstacles = [
           { x: -60, y: -40 + shift, r: 14, type: 'cone' },
@@ -698,13 +698,13 @@ function checkParked(bay, dt) {
       }
     } else {
       holdTimer = 0;
-      setCoachCue('Properly positioned! Brake to a complete stop (SPACE or release).', 'ok');
+      setCoachCue('Box is GREEN! Hold BRAKE or shift to P to pass.', 'ok');
     }
   } else if (insideRoughly) {
     bayPosState = 'partial';
     holdTimer = 0;
     setCoachCue(
-      aligned ? 'Good angle — center the car inside the bay lines.' : 'Inside the bay — straighten your steering to align with the lines.',
+      aligned ? 'Almost there — center the car inside the bay box.' : 'Inside the bay — straighten steering to align with the lines.',
       'neutral'
     );
   } else {
@@ -973,11 +973,11 @@ function drawScene() {
     ctx.fillRect(-t.h / 2, -t.w / 2 - 7, t.h * pct, 4);
   }
 
-  ctx.fillStyle = isGreen ? '#4ade80' : isPartial ? '#ffa92c' : 'rgba(255, 197, 112, 0.65)';
-  ctx.font = '700 11px "Geist Mono", monospace';
+  ctx.fillStyle = isGreen ? '#4ade80' : isPartial ? '#ffa92c' : 'rgba(255, 197, 112, 0.72)';
+  ctx.font = '700 10.5px "Geist Mono", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(bayCleared ? `✓ PASSED` : `BAY ${bay.id}`, 0, 0);
+  ctx.fillText(bayCleared ? '✓ PASSED' : `PARK · ${bay.id} ▸`, 0, 0);
   ctx.restore();
 
   // Obstacles (Curbs, Pillars, Cones, Parked Cars)
