@@ -1387,20 +1387,198 @@ dialog.garuda-modal::backdrop {
 }
 
 @media (max-width: 760px), (max-aspect-ratio: 1 / 1) {
-  footer.marquee {
+  footer.marquee,
+  .nav.right {
     display: none;
   }
 
-  .drive-pad {
+  header.top {
+    padding: max(12px, env(safe-area-inset-top)) 14px 0;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo span:not(.logo-shield),
+  .logo small {
+    display: none;
+  }
+
+  .brand {
+    gap: 2px;
+  }
+
+  .brand-kicker {
+    font-size: 8.5px;
+    letter-spacing: 0.14em;
+    max-width: calc(100vw - 120px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .champs {
+    font-size: 19px;
+  }
+
+  #menuBtn {
+    top: max(10px, env(safe-area-inset-top));
     right: 14px;
-    bottom: 120px;
+    width: 40px;
+    height: 40px;
   }
 
-  .wl-strip {
+  .mn-panel {
     width: calc(100vw - 28px);
-    bottom: 16px;
+    right: 14px;
+    top: calc(max(10px, env(safe-area-inset-top)) - 4px);
+    padding: 18px 18px 16px;
   }
 
+  .coach-cue {
+    top: calc(max(12px, env(safe-area-inset-top)) + 44px);
+    max-width: calc(100vw - 110px);
+    height: auto;
+    min-height: 28px;
+    padding: 6px 12px;
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .pass-sign {
+    top: calc(max(12px, env(safe-area-inset-top)) + 98px);
+    max-width: calc(100vw - 28px);
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  /* Move utility buttons to compact right-edge vertical column */
+  .hud-bottom-left {
+    left: auto;
+    right: 14px;
+    top: calc(max(12px, env(safe-area-inset-top)) + 54px);
+    bottom: auto;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hud-bottom-left .rn-round {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* Split ergonomic thumb controls: Steer Left, Pedals Right */
+  .drive-pad {
+    left: 14px;
+    right: 14px;
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 98px);
+    justify-content: space-between;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    pointer-events: none;
+  }
+
+  .drive-pad::before {
+    display: none;
+  }
+
+  .pad-steer,
+  .pad-pedals {
+    pointer-events: auto;
+    padding: 6px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.20);
+    background: rgba(12, 8, 8, 0.62);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .pad-steer .pad-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 15px;
+  }
+
+  .pad-pedals {
+    flex-direction: row;
+  }
+
+  .pad-pedals .pad-btn {
+    width: 56px;
+    height: 52px;
+    font-size: 11px;
+  }
+
+  /* Bottom Stage Dock */
+  .wl-strip {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    transform: none;
+  }
+
+  body.is-detail .wl-strip {
+    transform: translateY(16px);
+  }
+
+  .ws-name {
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+
+  .ws-name b {
+    font-size: 15px;
+  }
+
+  .ws-pos {
+    font-size: 8.5px;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-track {
+    gap: 6px;
+  }
+
+  .ws-prev,
+  .ws-next {
+    width: 36px;
+    height: 36px;
+  }
+
+  .ws-cells {
+    height: 40px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .ws-cells::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ws-c {
+    min-width: 36px;
+    font-size: 10.5px;
+  }
+
+  .ws-track .gl-btn {
+    height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 9px !important;
+    white-space: nowrap;
+  }
+
+  /* Dossier Sheet */
   .sh-frame {
     flex-direction: column;
     overflow-y: auto;
@@ -1412,16 +1590,57 @@ dialog.garuda-modal::backdrop {
   }
 
   aside#sheet {
-    left: 14px;
-    right: 14px;
+    left: 12px;
+    right: 12px;
     width: auto;
     top: auto;
-    bottom: 24px;
-    height: 60vh;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    height: 64vh;
+    padding: 10px 12px 12px;
+    border-radius: 20px;
+  }
+
+  /* 108 Stages & Manual Modals */
+  .gal-panel {
+    width: calc(100vw - 20px);
+    height: calc(100vh - 28px);
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .gal-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .gal-title {
+    font-size: 22px;
+  }
+
+  .gal-search {
+    width: 100%;
+    flex: 1;
+  }
+
+  .gal-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
   .mf-panel {
+    width: calc(100vw - 20px);
+    height: calc(100vh - 36px);
     grid-template-columns: 1fr;
+    border-radius: 20px;
+  }
+
+  .mf-words {
+    padding: 20px;
+  }
+
+  .mf-title {
+    font-size: 28px;
   }
 
   .mf-rule,

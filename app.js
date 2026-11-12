@@ -838,7 +838,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 function resizeCanvas() {
-  const uiScale = Math.max(0.76, Math.min(1.12, Math.min(window.innerWidth / 1568, window.innerHeight / 913)));
+  const isMobile = window.innerWidth <= 760 || window.innerWidth < window.innerHeight;
+  const uiScale = isMobile
+    ? 1
+    : Math.max(0.76, Math.min(1.12, Math.min(window.innerWidth / 1568, window.innerHeight / 913)));
   document.documentElement.style.setProperty('--ui', uiScale.toFixed(4));
   canvas.width = window.innerWidth * window.devicePixelRatio;
   canvas.height = window.innerHeight * window.devicePixelRatio;
@@ -867,11 +870,12 @@ function drawScene() {
 
   // Camera transform
   let zoom = camMode === 'wide' ? 0.92 : camMode === 'tight' ? 1.45 : 1.15;
-  if (vw < 760) zoom *= 0.72;
+  const isMobile = vw <= 760 || vw < vh;
+  if (isMobile) zoom *= 0.68;
   const camX = camMode === 'wide' ? 0 : CAR.x * 0.55;
   const camY = camMode === 'wide' ? 0 : CAR.y * 0.55;
 
-  ctx.translate(vw / 2, vh / 2 - 20);
+  ctx.translate(vw / 2, vh / 2 - (isMobile ? 42 : 20));
   ctx.scale(zoom, zoom);
   ctx.translate(-camX, -camY);
 
