@@ -1143,6 +1143,47 @@ body.is-detail .drive-pad {
   pointer-events: none;
 }
 
+.pad-shifter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(10, 8, 9, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.gear-btn {
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.56);
+  font: 700 10px/1 "Geist Mono", monospace;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.14s var(--ease), color 0.14s var(--ease);
+}
+
+.gear-btn.on[data-gear="P"] {
+  background: rgba(96, 165, 250, 0.25);
+  color: #93c5fd;
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55);
+}
+
+.gear-btn.on[data-gear="R"] {
+  background: rgba(255, 90, 90, 0.28);
+  color: #ff9494;
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.6);
+}
+
+.gear-btn.on[data-gear="D"] {
+  background: rgba(255, 197, 112, 0.25);
+  color: var(--gold-bright);
+  box-shadow: inset 0 0 0 1px rgba(255, 197, 112, 0.6);
+}
+
 .pad-pedals {
   display: flex;
   flex-direction: row;
@@ -1178,21 +1219,15 @@ body.is-detail .drive-pad {
     0 4px 10px rgba(0, 0, 0, 0.45);
 }
 
-.pedal-pad.pad-park {
-  width: 42px;
-  height: 46px;
-  border-radius: 9px 9px 11px 11px;
-}
-
 .pedal-pad.pad-rev {
-  width: 44px;
+  width: 52px;
   height: 50px;
   border-radius: 9px 9px 11px 11px;
 }
 
 .pedal-pad.pad-gas {
-  width: 40px;
-  height: 56px;
+  width: 42px;
+  height: 58px;
   border-radius: 8px 8px 10px 10px;
 }
 
@@ -1655,20 +1690,31 @@ dialog.garuda-modal::backdrop {
     height: 82px;
   }
 
+  .pad-shifter {
+    pointer-events: auto;
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.20);
+    background: rgba(12, 8, 8, 0.68);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .gear-btn {
+    width: 30px;
+    height: 24px;
+    font-size: 11px;
+  }
+
   .pad-pedals {
     flex-direction: row;
     align-items: flex-end;
     gap: 6px;
   }
 
-  .pedal-pad.pad-park {
-    width: 46px;
-    height: 46px;
-  }
-
   .pedal-pad.pad-rev {
-    width: 48px;
-    height: 50px;
+    width: 54px;
+    height: 48px;
   }
 
   .pedal-pad.pad-gas {

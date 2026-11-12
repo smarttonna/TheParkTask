@@ -538,7 +538,9 @@ const CAR = {
 };
 
 const STORAGE_KEY = 'garuda_drive_cleared_v1';
+const STAR_STORAGE_KEY = 'theparktask_stars_v1';
 let clearedBays = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+let stageRatings = JSON.parse(localStorage.getItem(STAR_STORAGE_KEY) || '{}');
 let currentBayIdx = 0;
 let showGuides = true;
 let bayCleared = false;
@@ -547,11 +549,33 @@ let startTime = performance.now();
 let collisions = 0;
 let reversals = 0;
 let lastGear = 'N';
+let activeGear = 'D'; // 'P' | 'R' | 'D'
 let lastCollisionBump = 0;
 let holdTimer = 0;
 
+function haptic(pattern) {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(pattern); } catch {}
+  }
+}
+
+function setActiveGear(gear, silent = false) {
+  if (activeGear === gear) return;
+  activeGear = gear;
+  document.querySelectorAll('.gear-btn').forEach((btn) => {
+    const isMatch = btn.dataset.gear === gear;
+    btn.classList.toggle('on', isMatch);
+    btn.setAttribute('aria-checked', String(isMatch));
+  });
+  if (!silent) {
+    if (sfx.enabled) sfx.init();
+    sfx.playGearShift();
+    haptic(12);
+  }
+}
+
 // Input state
-const keys = { up: false, down: false, left: false, right: false, brake: false };
+const keys = { up: false, down: false, left: false, right: false, brake: false, gas: false };
 
 function loadBay(idx) {
   currentBayIdx = (idx + BAYS.length) % BAYS.length;
@@ -570,6 +594,7 @@ function loadBay(idx) {
   reversals = 0;
   lastGear = 'N';
   holdTimer = 0;
+  setActiveGear('D', true);
 
   document.body.classList.remove('is-detail', 'bay-passed');
   document.getElementById('hudLevelKicker').textContent = `BAY ${bay.id} · ${bay.name.toUpperCase()} ${bay.surname.toUpperCase()}`;
@@ -693,9 +718,21 @@ function completeBay(bay, angleDiff, offsetPx) {
   bayPosState = 'passed';
   clearedBays.add(bay.id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...clearedBays]));
+
+  const stars = collisions === 0 && reversals <= 3 ? 3 : collisions <= 1 ? 2 : 1;
+  const clearTimeSec = Math.round((performance.now() - startTime) / 100) / 10;
+  const prev = stageRatings[bay.id];
+  stageRatings[bay.id] = {
+    stars: Math.max(stars, prev?.stars || 0),
+    bestTime: prev?.bestTime ? Math.min(clearTimeSec, prev.bestTime) : clearTimeSec
+  };
+  localStorage.setItem(STAR_STORAGE_KEY, JSON.stringify(stageRatings));
+
   document.body.classList.add('bay-passed');
-  document.getElementById('passSignTitle').textContent = `STAGE ${bay.id} · ${bay.name.toUpperCase()} ${bay.surname.toUpperCase()} CLEARED`;
+  const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+  document.getElementById('passSignTitle').textContent = `${starStr} · STAGE ${bay.id} CLEARED`;
   sfx.playSuccess();
+  haptic([25, 35, 55]);
   updateDockUI();
   renderStagesModal();
 
@@ -760,49 +797,46 @@ function updatePhysics(dt) {
     const targetSteer = analogueSteer * CAR.maxSteer;
     CAR.steer += (targetSteer - CAR.steer) * Math.min(1, 18 * dt);
   } else if (keys.left) {
-    stickSpringing = false;
     CAR.steer = Math.max(-CAR.maxSteer, CAR.steer - steerRate * dt);
   } else if (keys.right) {
-    stickSpringing = false;
     CAR.steer = Math.min(CAR.maxSteer, CAR.steer + steerRate * dt);
-  } else if (stickSpringing) {
-    CAR.steer *= Math.pow(0.001, dt);
-    if (Math.abs(CAR.steer) < 0.004) {
-      CAR.steer = 0;
-      stickSpringing = false;
-    }
   } else {
-    // Gentle self-centering when rolling
+    // Realistic self-centering only while rolling
     if (Math.abs(CAR.speed) > 10) {
       CAR.steer *= Math.pow(0.25, dt);
     }
   }
   syncStickVisual();
 
-  // Throttle & Brake
+  // Throttle & Brake (respects P / R / D gear selector + keyboard W/S)
   const accel = 260;
   const drag = 190;
+  const wantFwd = keys.up || (keys.gas && activeGear === 'D');
+  const wantRev = keys.down || (keys.gas && activeGear === 'R');
   if (keys.brake) {
     if (Math.abs(CAR.speed) < 18) CAR.speed = 0;
-    else CAR.speed -= Math.sign(CAR.speed) * 420 * dt;
-  } else if (keys.up) {
+    else CAR.speed -= Math.sign(CAR.speed) * 460 * dt;
+  } else if (keys.gas && activeGear === 'P') {
+    CAR.speed = 0;
+    setCoachCue('Car is in PARK (P) — tap D or R to drive.', 'neutral');
+  } else if (wantFwd) {
     CAR.speed = Math.min(CAR.maxFwd, CAR.speed + accel * dt);
-  } else if (keys.down) {
+  } else if (wantRev) {
     CAR.speed = Math.max(CAR.maxRev, CAR.speed - accel * dt);
   } else {
     if (Math.abs(CAR.speed) < 6) CAR.speed = 0;
     else CAR.speed -= Math.sign(CAR.speed) * drag * dt;
   }
 
-  // Track gear reversals & Park brake state
-  const gear = keys.brake ? 'P' : CAR.speed > 5 ? 'D' : CAR.speed < -5 ? 'R' : 'N';
+  // Track gear reversals & active P/R/D gear
+  const gear = keys.brake || activeGear === 'P' ? 'P' : CAR.speed > 5 ? 'D' : CAR.speed < -5 ? 'R' : activeGear;
   if (gear !== 'N' && gear !== 'P' && gear !== lastGear) {
     if (lastGear !== 'N') reversals++;
     lastGear = gear;
     sfx.playGearShift();
   }
 
-  sfx.updateEngine(CAR.speed, keys.up || keys.down);
+  sfx.updateEngine(CAR.speed, wantFwd || wantRev);
 
   // Save previous pose for collision rollback
   const prevX = CAR.x;
@@ -828,6 +862,7 @@ function updatePhysics(dt) {
       collisions++;
       lastCollisionBump = performance.now();
       sfx.playBump();
+      haptic([28, 18, 28]);
       setCoachCue('Bump! Pull slightly opposite & counter-steer for clearance.', 'warn');
     }
   } else {
@@ -999,7 +1034,7 @@ function drawScene() {
 function drawTrajectoryGuides() {
   const steps = 22;
   const stepDt = 0.075;
-  const dir = keys.down || CAR.speed < -2 ? -1 : 1;
+  const dir = activeGear === 'R' || keys.down || CAR.speed < -2 ? -1 : 1;
   const simSpeed = dir * 95;
 
   let sx = CAR.x;
@@ -1007,11 +1042,11 @@ function drawTrajectoryGuides() {
   let sa = CAR.angle;
 
   ctx.save();
-  ctx.strokeStyle = dir < 0 ? 'rgba(255, 197, 112, 0.75)' : 'rgba(246, 250, 249, 0.48)';
+  ctx.strokeStyle = dir < 0 ? 'rgba(255, 197, 112, 0.78)' : 'rgba(246, 250, 249, 0.48)';
   ctx.lineWidth = 2;
   ctx.setLineDash([5, 5]);
 
-  // Left & Right tire paths
+  // Left & Right tire paths + backup-camera distance crossbars
   const leftPts = [];
   const rightPts = [];
   for (let i = 0; i < steps; i++) {
@@ -1032,6 +1067,20 @@ function drawTrajectoryGuides() {
   [leftPts, rightPts].forEach((pts) => {
     ctx.beginPath();
     pts.forEach((p, idx) => (idx === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+    ctx.stroke();
+  });
+
+  // Distance zone crossbars (like a real backup camera)
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1.5;
+  [6, 13, 20].forEach((idx, z) => {
+    const l = leftPts[idx];
+    const r = rightPts[idx];
+    if (!l || !r) return;
+    ctx.strokeStyle = dir < 0 && z === 0 ? 'rgba(255, 90, 90, 0.72)' : 'rgba(255, 197, 112, 0.35)';
+    ctx.beginPath();
+    ctx.moveTo(l.x, l.y);
+    ctx.lineTo(r.x, r.y);
     ctx.stroke();
   });
 
@@ -1207,11 +1256,15 @@ function renderStagesModal() {
       const idx = b.num - 1;
       const isActive = idx === currentBayIdx;
       const isDone = clearedBays.has(b.id);
+      const rating = stageRatings[b.id];
+      const badgeText = isDone
+        ? (rating?.stars ? `${'★'.repeat(rating.stars)} PASSED` : '✓ PASSED')
+        : b.category.toUpperCase();
       return `
         <button type="button" class="stage-card${isActive ? ' active' : ''}${isDone ? ' cleared' : ''}" data-idx="${idx}">
           <div class="stage-card-top">
             <span>STAGE ${b.id}</span>
-            <span>${isDone ? '✓ PASSED' : b.category.toUpperCase()}</span>
+            <span>${badgeText}</span>
           </div>
           <strong>${b.name} ${b.surname}</strong>
           <small>${b.subtitle.split(' · ')[1] || b.subtitle}</small>
@@ -1314,8 +1367,8 @@ menuBtn.addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]')) return;
   const k = e.key.toLowerCase();
-  if (k === 'w' || e.key === 'ArrowUp') { keys.up = true; e.preventDefault(); }
-  if (k === 's' || e.key === 'ArrowDown') { keys.down = true; e.preventDefault(); }
+  if (k === 'w' || e.key === 'ArrowUp') { keys.up = true; setActiveGear('D', true); e.preventDefault(); }
+  if (k === 's' || e.key === 'ArrowDown') { keys.down = true; setActiveGear('R', true); e.preventDefault(); }
   if (k === 'a' || e.key === 'ArrowLeft') { keys.left = true; e.preventDefault(); }
   if (k === 'd' || e.key === 'ArrowRight') { keys.right = true; e.preventDefault(); }
   if (e.code === 'Space') { keys.brake = true; e.preventDefault(); }
@@ -1387,13 +1440,21 @@ if (steerWheelEl) {
   });
 
   const releaseWheel = () => {
-    if (analogueSteer !== null) stickSpringing = true;
     analogueSteer = null;
     steerWheelEl.classList.remove('dragging');
   };
   steerWheelEl.addEventListener('pointerup', releaseWheel);
   steerWheelEl.addEventListener('pointercancel', releaseWheel);
+  steerWheelEl.addEventListener('dblclick', () => {
+    CAR.steer = 0;
+    syncStickVisual();
+    haptic(10);
+  });
 }
+
+document.querySelectorAll('.gear-btn').forEach((btn) => {
+  btn.addEventListener('click', () => setActiveGear(btn.dataset.gear));
+});
 
 function bindPadBtn(id, keyProp) {
   const el = document.getElementById(id);
@@ -1410,9 +1471,8 @@ function bindPadBtn(id, keyProp) {
   el.addEventListener('pointercancel', off);
   el.addEventListener('pointerleave', off);
 }
-bindPadBtn('btnPark', 'brake');
-bindPadBtn('btnGas', 'up');
-bindPadBtn('btnRev', 'down');
+bindPadBtn('btnBrake', 'brake');
+bindPadBtn('btnGas', 'gas');
 
 // Main Animation Loop
 function loop(now) {

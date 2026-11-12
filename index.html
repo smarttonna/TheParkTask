@@ -252,21 +252,21 @@
         <span id="stickReadout" class="wheel-deg-badge">0°</span>
       </div>
     </div>
-    <div class="pad-pedals" role="group" aria-label="Park, Reverse, and Drive pedals">
-      <button type="button" class="pad-btn pedal-pad pad-park" id="btnPark" aria-label="Park and Brake">
+    <div class="pad-shifter" role="radiogroup" aria-label="Gear selector">
+      <button type="button" class="gear-btn" id="gearP" data-gear="P" role="radio" aria-checked="false" aria-label="Park">P</button>
+      <button type="button" class="gear-btn" id="gearR" data-gear="R" role="radio" aria-checked="false" aria-label="Reverse">R</button>
+      <button type="button" class="gear-btn on" id="gearD" data-gear="D" role="radio" aria-checked="true" aria-label="Drive">D</button>
+    </div>
+    <div class="pad-pedals" role="group" aria-label="Brake and Gas pedals">
+      <button type="button" class="pad-btn pedal-pad pad-rev" id="btnBrake" aria-label="Brake">
         <span class="pedal-tread" aria-hidden="true"></span>
-        <span class="pedal-label">P</span>
-        <span class="pedal-sub">PARK</span>
+        <span class="pedal-label">BRK</span>
+        <span class="pedal-sub">BRAKE</span>
       </button>
-      <button type="button" class="pad-btn pedal-pad pad-rev" id="btnRev" aria-label="Reverse">
+      <button type="button" class="pad-btn pedal-pad pad-gas" id="btnGas" aria-label="Gas">
         <span class="pedal-tread" aria-hidden="true"></span>
-        <span class="pedal-label">R</span>
-        <span class="pedal-sub">REV</span>
-      </button>
-      <button type="button" class="pad-btn pedal-pad pad-gas" id="btnGas" aria-label="Drive Forward">
-        <span class="pedal-tread" aria-hidden="true"></span>
-        <span class="pedal-label">D</span>
-        <span class="pedal-sub">DRIVE</span>
+        <span class="pedal-label">GAS</span>
+        <span class="pedal-sub">ACCEL</span>
       </button>
     </div>
   </div>
