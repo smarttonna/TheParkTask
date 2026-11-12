@@ -443,17 +443,28 @@ function buildAllStages() {
           { x: bayX + (76 - tight / 2), y: -66, w: 50, h: 102, type: 'car', color: colorB },
           { x: -235, y: -66, w: 50, h: 102, type: 'car', color: '#2b303a' }
         ];
+        stage.demoWaypoints = [
+          { x: bayX + 96, y: 122, gear: 'D' },
+          { x: bayX + 12, y: 24, gear: 'R' },
+          { x: bayX, y: -10, gear: 'R' },
+          { x: bayX, y: -66, gear: 'R' }
+        ];
       } else if (pattern === 1) {
         // Tight Parallel Curb
-        const gap = 138 - tight * 1.4;
+        const gap = 144 - tight * 1.2;
         stage.start = { x: 125, y: -12, angle: 0 };
         stage.target = { x: 0, y: -76, angle: 0, w: 58 - Math.round(tight / 2), h: 126 - tight };
         stage.coachCue = `${name} ${surname}: Parallel park between the 2 cars — shift R, steer into slot, then straighten.`;
         stage.tip = `COACH TIP (${context}): Wait until your front bumper clears the lead car before counter-steering.`;
         stage.obstacles = [
-          { x: 0, y: -126, w: 480, h: 24, type: 'curb' },
+          { x: 0, y: -132, w: 520, h: 24, type: 'curb' },
           { x: -gap, y: -76, w: 102, h: 48, type: 'car', color: colorA },
           { x: gap, y: -76, w: 102, h: 48, type: 'car', color: colorB }
+        ];
+        stage.demoWaypoints = [
+          { x: 76, y: -32, gear: 'R' },
+          { x: -24, y: -76, gear: 'R' },
+          { x: 0, y: -76, gear: 'D' }
         ];
       } else if (pattern === 2) {
         // 90° Blind Corner / Pillar Alley
@@ -467,6 +478,11 @@ function buildAllStages() {
           { x: 35 + Math.round(tight / 2), y: -35, w: 46, h: 108, type: 'pillar' },
           { x: -110, y: 190, w: 540, h: 22, type: 'curb' }
         ];
+        stage.demoWaypoints = [
+          { x: 132, y: 112, gear: 'D' },
+          { x: 130, y: 18, gear: 'R' },
+          { x: 130, y: -56, gear: 'R' }
+        ];
       } else if (pattern === 3) {
         // 45° Angled Diagonal Reverse
         stage.start = { x: -195, y: 105, angle: 0 };
@@ -479,21 +495,34 @@ function buildAllStages() {
           { x: 135 - Math.round(tight / 2), y: -62, w: 50, h: 100, angle: -Math.PI / 4, type: 'car', color: colorB },
           { x: 0, y: 176, w: 460, h: 20, type: 'curb' }
         ];
+        stage.demoWaypoints = [
+          { x: 130, y: 88, gear: 'D' },
+          { x: 78, y: -28, gear: 'R' },
+          { x: 45, y: -62, gear: 'R' }
+        ];
       } else if (pattern === 4) {
         // S-Curve Cone/Bollard Reverse Chicane
-        const shift = (eIdx % 2 === 0 ? 1 : -1) * 16;
+        const shift = (eIdx % 2 === 0 ? 1 : -1) * 14;
         stage.start = { x: -240, y: 80, angle: Math.PI };
         stage.target = { x: 205, y: -45, angle: Math.PI, w: 66 - Math.round(tight / 2), h: 120 - tight };
         stage.coachCue = `${name} ${surname}: Shift to R and weave through the cones to the end bay.`;
         stage.tip = `COACH TIP (${context}): Keep speed under 10 km/h when threading tight bollards in reverse.`;
         stage.obstacles = [
-          { x: -60, y: -40 + shift, r: 14, type: 'cone' },
-          { x: -60, y: 55 + shift, r: 14, type: 'cone' },
-          { x: 75, y: -95 - shift, r: 14, type: 'cone' },
-          { x: 75, y: 5 - shift, r: 14, type: 'cone' },
-          { x: 280, y: -45, w: 22, h: 180, type: 'wall' },
-          { x: 0, y: -156, w: 600, h: 20, type: 'curb' },
-          { x: 0, y: 166, w: 600, h: 20, type: 'curb' }
+          { x: -60, y: -55 + shift, r: 14, type: 'cone' },
+          { x: -60, y: 65 + shift, r: 14, type: 'cone' },
+          { x: 75, y: -120 - shift, r: 14, type: 'cone' },
+          { x: 75, y: 0 - shift, r: 14, type: 'cone' },
+          { x: 292 + 12, y: -45, w: 22, h: 180, type: 'wall' },
+          { x: 0, y: -156, w: 620, h: 20, type: 'curb' },
+          { x: 0, y: 166, w: 620, h: 20, type: 'curb' }
+        ];
+        stage.demoWaypoints = [
+          { x: -145, y: 42, gear: 'R' },
+          { x: -55, y: 12 + shift, gear: 'R' },
+          { x: 15, y: -25, gear: 'R' },
+          { x: 82, y: -62 - shift, gear: 'R' },
+          { x: 148, y: -62 - Math.round(shift * 0.4), gear: 'R' },
+          { x: 205, y: -45, gear: 'R' }
         ];
       } else {
         // Dual Concrete Pillar Garage Squeeze
@@ -508,6 +537,11 @@ function buildAllStages() {
           { x: -138, y: -68, w: 48, h: 98, type: 'car', color: colorA },
           { x: 158, y: -68, w: 48, h: 98, type: 'car', color: colorB },
           { x: 0, y: 186, w: 500, h: 22, type: 'curb' }
+        ];
+        stage.demoWaypoints = [
+          { x: 28, y: 108, gear: 'D' },
+          { x: 10, y: 18, gear: 'R' },
+          { x: 10, y: -68, gear: 'R' }
         ];
       }
 
@@ -552,6 +586,11 @@ let lastGear = 'N';
 let activeGear = 'D'; // 'P' | 'R' | 'D'
 let lastCollisionBump = 0;
 let holdTimer = 0;
+let autoDemo = false;
+let demoWpIdx = 0;
+let demoDone = false;
+let hitObsRef = null;
+let hitObsUntil = 0;
 
 function haptic(pattern) {
   if (navigator.vibrate) {
@@ -594,6 +633,13 @@ function loadBay(idx) {
   reversals = 0;
   lastGear = 'N';
   holdTimer = 0;
+  autoDemo = false;
+  demoWpIdx = 0;
+  demoDone = false;
+  hitObsRef = null;
+  hitObsUntil = 0;
+  document.getElementById('demoBtn')?.classList.remove('demo-on');
+  document.getElementById('demoBtn')?.setAttribute('aria-pressed', 'false');
   setActiveGear('D', true);
 
   document.body.classList.remove('is-detail', 'bay-passed');
@@ -638,9 +684,12 @@ function pointToObsDist(px, py, obs) {
   const dy = py - obs.y;
   const lx = dx * Math.cos(-a) - dy * Math.sin(-a);
   const ly = dx * Math.sin(-a) + dy * Math.cos(-a);
-  const qx = Math.max(Math.abs(lx) - obs.w / 2, 0);
-  const qy = Math.max(Math.abs(ly) - obs.h / 2, 0);
-  return Math.hypot(qx, qy);
+  const dxEdge = Math.abs(lx) - obs.w / 2;
+  const dyEdge = Math.abs(ly) - obs.h / 2;
+  if (dxEdge <= 0 && dyEdge <= 0) {
+    return Math.max(dxEdge, dyEdge); // negative penetration depth inside solid obstacle
+  }
+  return Math.hypot(Math.max(dxEdge, 0), Math.max(dyEdge, 0));
 }
 
 function getCarClearance(carX, carY, carAngle, bay) {
@@ -657,21 +706,22 @@ function getCarClearance(carX, carY, carAngle, bay) {
   ];
 
   let minDist = Infinity;
+  let nearestObs = null;
   for (const obs of bay.obstacles) {
     for (const pt of samples) {
       const d = pointToObsDist(pt.x, pt.y, obs);
-      if (d < minDist) minDist = d;
+      if (d < minDist) { minDist = d; nearestObs = obs; }
     }
     // Also check obstacle corners inside car
     if (obs.type !== 'cone') {
       const obsCorners = getRectCorners(obs.x, obs.y, obs.w, obs.h, obs.angle || 0);
       for (const oc of obsCorners) {
         const d = pointToObsDist(oc.x, oc.y, { x: carX, y: carY, w: CAR.length, h: CAR.width, angle: carAngle });
-        if (d < minDist) minDist = d;
+        if (d < minDist) { minDist = d; nearestObs = obs; }
       }
     }
   }
-  return minDist;
+  return { dist: minDist, obs: nearestObs };
 }
 
 // Check if car is cleanly parked inside target bay
@@ -788,44 +838,129 @@ function completeBay(bay, angleDiff, offsetPx) {
 // ==========================================================================
 let lastTime = performance.now();
 
+function stopAutoDemo(msg) {
+  if (!autoDemo) return;
+  autoDemo = false;
+  keys.brake = false;
+  document.getElementById('demoBtn')?.classList.remove('demo-on');
+  document.getElementById('demoBtn')?.setAttribute('aria-pressed', 'false');
+  if (msg) setCoachCue(msg, 'ok');
+}
+
+function startAutoDemo() {
+  if (autoDemo) {
+    stopAutoDemo('Demo paused — you have manual control.');
+    return;
+  }
+  loadBay(currentBayIdx);
+  autoDemo = true;
+  demoWpIdx = 0;
+  demoDone = false;
+  if (sfx.enabled) sfx.init();
+  document.getElementById('demoBtn')?.classList.add('demo-on');
+  document.getElementById('demoBtn')?.setAttribute('aria-pressed', 'true');
+  setCoachCue('AUTO DEMO: Watch steering wheel, gear shifts & trajectory.', 'neutral');
+}
+
+function stepAutoDemo(dt, bay) {
+  const wps = bay.demoWaypoints;
+  if (!wps || !wps.length) {
+    stopAutoDemo();
+    return;
+  }
+
+  // If already aligned inside final bay (or within 10px of final target), brake to a stop and complete demo
+  const lastWp = wps[wps.length - 1];
+  const distToEnd = Math.hypot(lastWp.x - CAR.x, lastWp.y - CAR.y);
+  if (demoWpIdx >= wps.length - 1 && (bayPosState === 'aligned' || distToEnd < 10)) {
+    CAR.speed = 0;
+    CAR.steer *= Math.pow(0.05, dt);
+    setActiveGear('P', true);
+    if (!demoDone) {
+      demoDone = true;
+      stopAutoDemo('DEMO COMPLETE — Tap Reset (↺) to try it yourself!');
+    }
+    return;
+  }
+
+  const wp = wps[Math.min(demoWpIdx, wps.length - 1)];
+  const dx = wp.x - CAR.x;
+  const dy = wp.y - CAR.y;
+  const dist = Math.hypot(dx, dy);
+  const isLast = demoWpIdx === wps.length - 1;
+
+  if (!isLast && dist < 16) {
+    demoWpIdx++;
+    return;
+  }
+
+  setActiveGear(wp.gear, false);
+  let desiredAngle = wp.gear === 'R' ? Math.atan2(dy, dx) + Math.PI : Math.atan2(dy, dx);
+  // On final approach, blend toward the target bay's exact orientation so the car straightens cleanly
+  if (isLast && dist < 42) {
+    const tAngle = bay.target.angle;
+    const altAngle = tAngle + Math.PI;
+    const d1 = Math.abs(Math.atan2(Math.sin(tAngle - CAR.angle), Math.cos(tAngle - CAR.angle)));
+    const d2 = Math.abs(Math.atan2(Math.sin(altAngle - CAR.angle), Math.cos(altAngle - CAR.angle)));
+    const bayAlign = d1 <= d2 ? tAngle : altAngle;
+    const blend = Math.max(0, Math.min(1, 1 - dist / 42));
+    const diff = Math.atan2(Math.sin(bayAlign - desiredAngle), Math.cos(bayAlign - desiredAngle));
+    desiredAngle += diff * blend * 0.75;
+  }
+
+  const err = Math.atan2(Math.sin(desiredAngle - CAR.angle), Math.cos(desiredAngle - CAR.angle));
+  const targetSteer = Math.max(-CAR.maxSteer, Math.min(CAR.maxSteer, (wp.gear === 'R' ? -1.7 : 1.55) * err));
+  CAR.steer += (targetSteer - CAR.steer) * Math.min(1, 12 * dt);
+
+  const targetSpeed = wp.gear === 'R' ? (isLast && dist < 45 ? -42 : -68) : (isLast && dist < 45 ? 44 : 84);
+  CAR.speed += (targetSpeed - CAR.speed) * Math.min(1, 7 * dt);
+}
+
 function updatePhysics(dt) {
   if (bayCleared || document.querySelector('dialog[open]')) return;
 
-  // Steering input (Analogue thumbstick overrides digital keys)
-  const steerRate = 2.6;
-  if (analogueSteer !== null) {
-    const targetSteer = analogueSteer * CAR.maxSteer;
-    CAR.steer += (targetSteer - CAR.steer) * Math.min(1, 18 * dt);
-  } else if (keys.left) {
-    CAR.steer = Math.max(-CAR.maxSteer, CAR.steer - steerRate * dt);
-  } else if (keys.right) {
-    CAR.steer = Math.min(CAR.maxSteer, CAR.steer + steerRate * dt);
-  } else {
-    // Realistic self-centering only while rolling
-    if (Math.abs(CAR.speed) > 10) {
-      CAR.steer *= Math.pow(0.25, dt);
-    }
-  }
-  syncStickVisual();
+  const bay = BAYS[currentBayIdx];
 
-  // Throttle & Brake (respects P / R / D gear selector + keyboard W/S)
-  const accel = 260;
-  const drag = 190;
-  const wantFwd = keys.up || (keys.gas && activeGear === 'D');
-  const wantRev = keys.down || (keys.gas && activeGear === 'R');
-  if (keys.brake) {
-    if (Math.abs(CAR.speed) < 18) CAR.speed = 0;
-    else CAR.speed -= Math.sign(CAR.speed) * 460 * dt;
-  } else if (keys.gas && activeGear === 'P') {
-    CAR.speed = 0;
-    setCoachCue('Car is in PARK (P) — tap D or R to drive.', 'neutral');
-  } else if (wantFwd) {
-    CAR.speed = Math.min(CAR.maxFwd, CAR.speed + accel * dt);
-  } else if (wantRev) {
-    CAR.speed = Math.max(CAR.maxRev, CAR.speed - accel * dt);
+  if (autoDemo) {
+    stepAutoDemo(dt, bay);
+    syncStickVisual();
   } else {
-    if (Math.abs(CAR.speed) < 6) CAR.speed = 0;
-    else CAR.speed -= Math.sign(CAR.speed) * drag * dt;
+    // Steering input (Rotational wheel overrides digital keys)
+    const steerRate = 2.6;
+    if (analogueSteer !== null) {
+      const targetSteer = analogueSteer * CAR.maxSteer;
+      CAR.steer += (targetSteer - CAR.steer) * Math.min(1, 18 * dt);
+    } else if (keys.left) {
+      CAR.steer = Math.max(-CAR.maxSteer, CAR.steer - steerRate * dt);
+    } else if (keys.right) {
+      CAR.steer = Math.min(CAR.maxSteer, CAR.steer + steerRate * dt);
+    } else {
+      // Realistic self-centering only while rolling
+      if (Math.abs(CAR.speed) > 10) {
+        CAR.steer *= Math.pow(0.25, dt);
+      }
+    }
+    syncStickVisual();
+
+    // Throttle & Brake (respects P / R / D gear selector + keyboard W/S)
+    const accel = 260;
+    const drag = 190;
+    const wantFwd = keys.up || (keys.gas && activeGear === 'D');
+    const wantRev = keys.down || (keys.gas && activeGear === 'R');
+    if (keys.brake) {
+      if (Math.abs(CAR.speed) < 18) CAR.speed = 0;
+      else CAR.speed -= Math.sign(CAR.speed) * 460 * dt;
+    } else if (keys.gas && activeGear === 'P') {
+      CAR.speed = 0;
+      setCoachCue('Car is in PARK (P) — tap D or R to drive.', 'neutral');
+    } else if (wantFwd) {
+      CAR.speed = Math.min(CAR.maxFwd, CAR.speed + accel * dt);
+    } else if (wantRev) {
+      CAR.speed = Math.max(CAR.maxRev, CAR.speed - accel * dt);
+    } else {
+      if (Math.abs(CAR.speed) < 6) CAR.speed = 0;
+      else CAR.speed -= Math.sign(CAR.speed) * drag * dt;
+    }
   }
 
   // Track gear reversals & active P/R/D gear
@@ -836,9 +971,9 @@ function updatePhysics(dt) {
     sfx.playGearShift();
   }
 
-  sfx.updateEngine(CAR.speed, wantFwd || wantRev);
+  sfx.updateEngine(CAR.speed, autoDemo || keys.up || keys.down || keys.gas);
 
-  // Save previous pose for collision rollback
+  // Save previous pose for solid wall/obstacle rollback
   const prevX = CAR.x;
   const prevY = CAR.y;
   const prevAngle = CAR.angle;
@@ -849,25 +984,40 @@ function updatePhysics(dt) {
   CAR.x += Math.cos(CAR.angle) * CAR.speed * dt;
   CAR.y += Math.sin(CAR.angle) * CAR.speed * dt;
 
-  const bay = BAYS[currentBayIdx];
-  const clearance = getCarClearance(CAR.x, CAR.y, CAR.angle, bay);
+  const { dist: clearance, obs: hitObs } = getCarClearance(CAR.x, CAR.y, CAR.angle, bay);
 
-  if (clearance < 0) {
-    // Bounce / stop at obstacle
+  if (clearance <= 0.5) {
+    // Solid obstacle stop: walls, curbs, pillars, cones, and parked cars block the car
     CAR.x = prevX;
     CAR.y = prevY;
     CAR.angle = prevAngle;
-    CAR.speed = -CAR.speed * 0.25;
+    CAR.speed = 0;
+    hitObsRef = hitObs;
+    hitObsUntil = performance.now() + 550;
     if (performance.now() - lastCollisionBump > 550) {
       collisions++;
       lastCollisionBump = performance.now();
       sfx.playBump();
       haptic([28, 18, 28]);
-      setCoachCue('Bump! Pull slightly opposite & counter-steer for clearance.', 'warn');
+      const obsName = hitObs?.type === 'wall' ? 'Wall' : hitObs?.type === 'curb' ? 'Curb' : hitObs?.type === 'pillar' ? 'Pillar' : hitObs?.type === 'cone' ? 'Cone' : 'Parked car';
+      setCoachCue(`${obsName} blocked you! Shift opposite gear & steer clear.`, 'warn');
     }
   } else {
     sfx.updateRadar(clearance, CAR.speed < -4);
-    checkParked(bay, dt);
+    if (!autoDemo && !demoDone) {
+      checkParked(bay, dt);
+    } else {
+      // Update bayPosState visually during demo without awarding user pass/stars
+      const t = bay.target;
+      const dx = CAR.x - t.x;
+      const dy = CAR.y - t.y;
+      const lx = dx * Math.cos(-t.angle) - dy * Math.sin(-t.angle);
+      const ly = dx * Math.sin(-t.angle) + dy * Math.cos(-t.angle);
+      const angleDiff = Math.abs(Math.atan2(Math.sin(CAR.angle - t.angle), Math.cos(CAR.angle - t.angle)));
+      const aligned = angleDiff < 0.18 || Math.abs(angleDiff - Math.PI) < 0.18;
+      const centered = Math.abs(lx) < (t.h - CAR.length) / 2 + 10 && Math.abs(ly) < (t.w - CAR.width) / 2 + 7;
+      bayPosState = aligned && centered ? 'aligned' : 'outside';
+    }
   }
 
   // Update bottom dock telemetry string
@@ -981,10 +1131,16 @@ function drawScene() {
   ctx.restore();
 
   // Obstacles (Curbs, Pillars, Cones, Parked Cars)
+  const nowMs = performance.now();
   for (const obs of bay.obstacles) {
     ctx.save();
     ctx.translate(obs.x, obs.y);
     if (obs.angle) ctx.rotate(obs.angle);
+    const isHit = obs === hitObsRef && nowMs < hitObsUntil;
+    if (isHit) {
+      ctx.shadowColor = '#ff4d4d';
+      ctx.shadowBlur = 16;
+    }
 
     if (obs.type === 'cone') {
       ctx.beginPath();
@@ -1342,6 +1498,7 @@ document.getElementById('resetBtnLink').addEventListener('click', (e) => {
   e.preventDefault();
   loadBay(currentBayIdx);
 });
+document.getElementById('demoBtn')?.addEventListener('click', startAutoDemo);
 document.getElementById('resetHudBtn').addEventListener('click', () => loadBay(currentBayIdx));
 document.getElementById('menuRestartBtn').addEventListener('click', () => {
   document.body.classList.remove('menu-open');
@@ -1367,6 +1524,9 @@ menuBtn.addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]')) return;
   const k = e.key.toLowerCase();
+  if (['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+    if (autoDemo) stopAutoDemo('Manual override — you have control.');
+  }
   if (k === 'w' || e.key === 'ArrowUp') { keys.up = true; setActiveGear('D', true); e.preventDefault(); }
   if (k === 's' || e.key === 'ArrowDown') { keys.down = true; setActiveGear('R', true); e.preventDefault(); }
   if (k === 'a' || e.key === 'ArrowLeft') { keys.left = true; e.preventDefault(); }
@@ -1417,6 +1577,7 @@ if (steerWheelEl) {
 
   steerWheelEl.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    if (autoDemo) stopAutoDemo('Manual override — you have control.');
     steerWheelEl.setPointerCapture(e.pointerId);
     steerWheelEl.classList.add('dragging');
     stickSpringing = false;
@@ -1461,6 +1622,7 @@ function bindPadBtn(id, keyProp) {
   if (!el) return;
   const on = (e) => {
     e.preventDefault();
+    if (autoDemo) stopAutoDemo('Manual override — you have control.');
     if (sfx.enabled) sfx.init();
     keys[keyProp] = true;
     el.classList.add('active');

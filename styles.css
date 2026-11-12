@@ -960,6 +960,13 @@ body.is-detail aside#sheet {
    6. BOTTOM PERIMETER HUD: UTILITIES, BAY DOCK, DRIVE PAD & MARQUEE
    ========================================================================== */
 
+.rn-round.demo-on {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  background: rgba(255, 197, 112, 0.2);
+  box-shadow: 0 0 14px rgba(255, 197, 112, 0.35);
+}
+
 .hud-bottom-left {
   position: fixed;
   left: calc(36px * var(--ui));
@@ -1655,7 +1662,14 @@ dialog.garuda-modal::backdrop {
   }
 
   /* Move utility buttons to compact right-edge vertical column */
-  .hud-bottom-left {
+  .rn-round.demo-on {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  background: rgba(255, 197, 112, 0.2);
+  box-shadow: 0 0 14px rgba(255, 197, 112, 0.35);
+}
+
+.hud-bottom-left {
     left: auto;
     right: 14px;
     top: calc(max(12px, env(safe-area-inset-top)) + 54px);
