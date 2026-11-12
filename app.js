@@ -754,18 +754,30 @@ let lastTime = performance.now();
 function updatePhysics(dt) {
   if (bayCleared || document.querySelector('dialog[open]')) return;
 
-  // Steering input
+  // Steering input (Analogue thumbstick overrides digital keys)
   const steerRate = 2.6;
-  if (keys.left) {
+  if (analogueSteer !== null) {
+    const targetSteer = analogueSteer * CAR.maxSteer;
+    CAR.steer += (targetSteer - CAR.steer) * Math.min(1, 18 * dt);
+  } else if (keys.left) {
+    stickSpringing = false;
     CAR.steer = Math.max(-CAR.maxSteer, CAR.steer - steerRate * dt);
   } else if (keys.right) {
+    stickSpringing = false;
     CAR.steer = Math.min(CAR.maxSteer, CAR.steer + steerRate * dt);
+  } else if (stickSpringing) {
+    CAR.steer *= Math.pow(0.001, dt);
+    if (Math.abs(CAR.steer) < 0.004) {
+      CAR.steer = 0;
+      stickSpringing = false;
+    }
   } else {
     // Gentle self-centering when rolling
     if (Math.abs(CAR.speed) > 10) {
       CAR.steer *= Math.pow(0.25, dt);
     }
   }
+  syncStickVisual();
 
   // Throttle & Brake
   const accel = 260;
@@ -1319,7 +1331,54 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') keys.brake = false;
 });
 
-// On-Screen Touch / Pointer Driving Pad
+// On-Screen Touch / Pointer Analogue Steering & Pedals
+let analogueSteer = null;
+let stickSpringing = false;
+const steerStickEl = document.getElementById('steerStick');
+const steerKnobEl = document.getElementById('steerKnob');
+const stickReadoutEl = document.getElementById('stickReadout');
+
+function syncStickVisual() {
+  if (!steerStickEl || !steerKnobEl) return;
+  const maxTravel = Math.max(24, (steerStickEl.clientWidth - steerKnobEl.clientWidth) / 2 - 4);
+  const norm = CAR.steer / CAR.maxSteer;
+  steerKnobEl.style.setProperty('--stick-x', `${(norm * maxTravel).toFixed(1)}px`);
+  const deg = Math.round((CAR.steer * 180) / Math.PI);
+  if (stickReadoutEl) stickReadoutEl.textContent = `${deg > 0 ? '+' : ''}${deg}°`;
+  steerStickEl.setAttribute('aria-valuenow', String(deg));
+}
+
+if (steerStickEl) {
+  const updateFromPointer = (e) => {
+    const rect = steerStickEl.getBoundingClientRect();
+    const maxTravel = Math.max(24, (rect.width - 44) / 2 - 4);
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    analogueSteer = Math.max(-1, Math.min(1, dx / maxTravel));
+  };
+
+  steerStickEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    steerStickEl.setPointerCapture(e.pointerId);
+    steerStickEl.classList.add('dragging');
+    stickSpringing = false;
+    if (sfx.enabled) sfx.init();
+    updateFromPointer(e);
+  });
+
+  steerStickEl.addEventListener('pointermove', (e) => {
+    if (analogueSteer === null) return;
+    updateFromPointer(e);
+  });
+
+  const releaseStick = () => {
+    if (analogueSteer !== null) stickSpringing = true;
+    analogueSteer = null;
+    steerStickEl.classList.remove('dragging');
+  };
+  steerStickEl.addEventListener('pointerup', releaseStick);
+  steerStickEl.addEventListener('pointercancel', releaseStick);
+}
+
 function bindPadBtn(id, keyProp) {
   const el = document.getElementById(id);
   const on = (e) => { e.preventDefault(); keys[keyProp] = true; el.classList.add('active'); };
@@ -1328,8 +1387,6 @@ function bindPadBtn(id, keyProp) {
   window.addEventListener('pointerup', off);
   el.addEventListener('pointerleave', off);
 }
-bindPadBtn('btnLeft', 'left');
-bindPadBtn('btnRight', 'right');
 bindPadBtn('btnGas', 'up');
 bindPadBtn('btnRev', 'down');
 

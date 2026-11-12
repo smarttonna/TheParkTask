@@ -215,11 +215,16 @@
     </div>
   </nav>
 
-  <!-- Bottom-Right Touch / Mouse Steering & Pedal Cluster -->
+  <!-- Bottom-Right Touch / Mouse Analogue Steering & Pedal Cluster -->
   <div id="drivePad" class="drive-pad glass-panel" aria-label="On-screen driving controls">
     <div class="pad-steer">
-      <button type="button" class="pad-btn" id="btnLeft" aria-label="Steer Left">◀</button>
-      <button type="button" class="pad-btn" id="btnRight" aria-label="Steer Right">▶</button>
+      <div id="steerStick" class="steer-stick" role="slider" aria-label="Analogue steering controller" aria-valuemin="-36" aria-valuemax="36" aria-valuenow="0" tabindex="0">
+        <span class="stick-track-line" aria-hidden="true"></span>
+        <span class="stick-center-tick" aria-hidden="true"></span>
+        <div class="stick-knob" id="steerKnob">
+          <span id="stickReadout">0°</span>
+        </div>
+      </div>
     </div>
     <div class="pad-pedals">
       <button type="button" class="pad-btn pad-gas" id="btnGas" aria-label="Drive Forward">D ▲</button>
