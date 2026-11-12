@@ -1381,10 +1381,16 @@ if (steerStickEl) {
 
 function bindPadBtn(id, keyProp) {
   const el = document.getElementById(id);
-  const on = (e) => { e.preventDefault(); keys[keyProp] = true; el.classList.add('active'); };
+  const on = (e) => {
+    e.preventDefault();
+    if (sfx.enabled) sfx.init();
+    keys[keyProp] = true;
+    el.classList.add('active');
+  };
   const off = () => { keys[keyProp] = false; el.classList.remove('active'); };
   el.addEventListener('pointerdown', on);
   window.addEventListener('pointerup', off);
+  el.addEventListener('pointercancel', off);
   el.addEventListener('pointerleave', off);
 }
 bindPadBtn('btnGas', 'up');

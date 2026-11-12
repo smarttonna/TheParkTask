@@ -226,9 +226,17 @@
         </div>
       </div>
     </div>
-    <div class="pad-pedals">
-      <button type="button" class="pad-btn pad-gas" id="btnGas" aria-label="Drive Forward">D ▲</button>
-      <button type="button" class="pad-btn pad-rev" id="btnRev" aria-label="Reverse">R ▼</button>
+    <div class="pad-pedals" role="group" aria-label="Drive and reverse pedals">
+      <button type="button" class="pad-btn pedal-pad pad-rev" id="btnRev" aria-label="Reverse">
+        <span class="pedal-tread" aria-hidden="true"></span>
+        <span class="pedal-label">R</span>
+        <span class="pedal-sub">REV</span>
+      </button>
+      <button type="button" class="pad-btn pedal-pad pad-gas" id="btnGas" aria-label="Drive Forward">
+        <span class="pedal-tread" aria-hidden="true"></span>
+        <span class="pedal-label">D</span>
+        <span class="pedal-sub">DRIVE</span>
+      </button>
     </div>
   </div>
 
