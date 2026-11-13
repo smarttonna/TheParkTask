@@ -1,0 +1,494 @@
+<?php
+declare(strict_types=1);
+
+$action = $_POST['action'] ?? '';
+$password = (string)($_POST['password'] ?? '');
+$cost = (int)($_POST['cost'] ?? 10);
+$cost = max(4, min(14, $cost));
+
+$verifyPassword = (string)($_POST['verify_password'] ?? '');
+$verifyHash = trim((string)($_POST['verify_hash'] ?? ''));
+
+$hashResult = '';
+$verifyResult = null;
+$errorMsg = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  if ($action === 'generate') {
+    if ($password === '') {
+      $errorMsg = 'Enter a password to hash.';
+    } else {
+      $hashResult = password_hash($password, PASSWORD_BCRYPT, ['cost' => $cost]);
+    }
+  } elseif ($action === 'verify') {
+    if ($verifyPassword === '' || $verifyHash === '') {
+      $errorMsg = 'Enter both a password and a bcrypt hash to verify.';
+    } else {
+      $verifyResult = password_verify($verifyPassword, $verifyHash);
+    }
+  }
+
+  $isJson = strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') !== false;
+  if ($isJson) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+      'hash' => $hashResult,
+      'cost' => $cost,
+      'verified' => $verifyResult,
+      'error' => $errorMsg
+    ]);
+    exit;
+  }
+}
+
+function h(string $val): string {
+  return htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bcrypt Hash Generator — phpMyAdmin Ready</title>
+  <style>
+    :root {
+      --bg: #0c0a0b;
+      --panel: rgba(24, 20, 22, 0.86);
+      --border: rgba(255, 255, 255, 0.14);
+      --ink: #f6faf9;
+      --muted: rgba(246, 250, 249, 0.66);
+      --gold: #ffc570;
+      --gold-dim: rgba(255, 197, 112, 0.16);
+      --ok: #4ade80;
+      --ok-bg: rgba(74, 222, 128, 0.14);
+      --err: #ff7b7b;
+      --err-bg: rgba(255, 90, 90, 0.14);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(162, 16, 36, 0.22), transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(255, 197, 112, 0.12), transparent 45%),
+        var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      padding: 24px 16px 48px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 760px;
+      display: grid;
+      gap: 18px;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand-kicker {
+      font: 700 11px/1 var(--mono);
+      letter-spacing: 0.16em;
+      color: var(--gold);
+      margin: 0 0 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 4vw, 30px);
+      letter-spacing: -0.02em;
+    }
+
+    .back-link {
+      color: var(--ink);
+      text-decoration: none;
+      font: 600 12px/1 var(--mono);
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .back-link:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+    }
+
+    .card p.sub {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font: 600 11px/1 var(--mono);
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    select,
+    textarea {
+      width: 100%;
+      background: rgba(8, 7, 8, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--ink);
+      padding: 11px 12px;
+      font: 500 14px/1.3 var(--mono);
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--gold);
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font: 700 12px/1 var(--mono);
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    button.primary {
+      background: linear-gradient(160deg, #ffd99a, #e8ab36);
+      color: #180f08;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .output-box {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(6, 6, 7, 0.85);
+      border: 1px solid rgba(255, 197, 112, 0.35);
+      display: none;
+      gap: 10px;
+    }
+
+    .output-box.show {
+      display: grid;
+    }
+
+    .hash-line {
+      font: 600 13px/1.4 var(--mono);
+      color: var(--gold);
+      word-break: break-all;
+      user-select: all;
+    }
+
+    .sql-line {
+      font: 500 12px/1.45 var(--mono);
+      color: #cbd5e1;
+      word-break: break-all;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 10px;
+      border-radius: 8px;
+      user-select: all;
+    }
+
+    .status-pill {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font: 700 12px/1.3 var(--mono);
+      display: none;
+    }
+
+    .status-pill.ok {
+      display: block;
+      background: var(--ok-bg);
+      border: 1px solid rgba(74, 222, 128, 0.45);
+      color: var(--ok);
+    }
+
+    .status-pill.err {
+      display: block;
+      background: var(--err-bg);
+      border: 1px solid rgba(255, 90, 90, 0.45);
+      color: var(--err);
+    }
+
+    @media (max-width: 600px) {
+      .row, .row-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <p class="brand-kicker">PHP <?= h(PHP_VERSION) ?> · PASSWORD_BCRYPT ($2y$)</p>
+        <h1>Bcrypt Hash Generator</h1>
+      </div>
+      <a class="back-link" href="./">← Back to TheParkTask</a>
+    </header>
+
+    <section class="card" aria-labelledby="genTitle">
+      <h2 id="genTitle">1. Generate Hash for phpMyAdmin</h2>
+      <p class="sub">Produces a standard PHP <code>$2y$</code> bcrypt hash compatible with <code>password_verify()</code>, Laravel, WordPress, and phpMyAdmin.</p>
+
+      <form id="genForm" method="post" action="bcrypt.php">
+        <input type="hidden" name="action" value="generate" />
+        <div class="row">
+          <div>
+            <label for="genPassword">PLAINTEXT PASSWORD</label>
+            <input type="password" id="genPassword" name="password" value="<?= h($password) ?>" placeholder="Enter password to hash..." autocomplete="off" required />
+          </div>
+          <div>
+            <label for="genCost">COST</label>
+            <select id="genCost" name="cost">
+              <?php foreach ([8 => '08 (Fast)', 10 => '10 (Standard)', 12 => '12 (Strong)', 13 => '13 (High)', 14 => '14 (Max)'] as $c => $label): ?>
+                <option value="<?= $c ?>" <?= $cost === $c ? 'selected' : '' ?>><?= h($label) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="primary" id="btnGenerate">Generate Bcrypt Hash</button>
+          <button type="button" id="btnTogglePass">Show</button>
+          <button type="button" id="btnRandomPass">Random Password</button>
+        </div>
+      </form>
+
+      <div id="genError" class="status-pill <?= $errorMsg && $action === 'generate' ? 'err' : '' ?>"><?= h($action === 'generate' ? $errorMsg : '') ?></div>
+
+      <div id="genOutput" class="output-box <?= $hashResult !== '' ? 'show' : '' ?>">
+        <div>
+          <label>BCRYPT HASH (PASTE INTO PHPMYADMIN PASSWORD COLUMN)</label>
+          <div id="hashText" class="hash-line"><?= h($hashResult) ?></div>
+        </div>
+        <div class="btn-row">
+          <button type="button" id="btnCopyHash" class="primary">Copy Hash</button>
+          <span id="copyStatus" style="font:600 11px/1 var(--mono);color:var(--ok);"></span>
+        </div>
+
+        <div class="row-2" style="margin-top:6px;">
+          <div>
+            <label for="sqlTable">TABLE</label>
+            <input type="text" id="sqlTable" value="users" />
+          </div>
+          <div>
+            <label for="sqlCol">COLUMN</label>
+            <input type="text" id="sqlCol" value="password" />
+          </div>
+          <div>
+            <label for="sqlWhere">WHERE</label>
+            <input type="text" id="sqlWhere" value="id = 1" />
+          </div>
+        </div>
+        <div>
+          <label>READY-TO-RUN PHPMYADMIN SQL</label>
+          <div id="sqlText" class="sql-line"></div>
+        </div>
+        <div class="btn-row">
+          <button type="button" id="btnCopySql">Copy SQL</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="verTitle">
+      <h2 id="verTitle">2. Verify Existing Bcrypt Hash</h2>
+      <p class="sub">Test any <code>$2y$</code>, <code>$2a$</code>, or <code>$2b$</code> hash from phpMyAdmin against a plaintext password.</p>
+
+      <form id="verForm" method="post" action="bcrypt.php">
+        <input type="hidden" name="action" value="verify" />
+        <div style="margin-bottom:12px;">
+          <label for="verifyHash">BCRYPT HASH</label>
+          <input type="text" id="verifyHash" name="verify_hash" value="<?= h($verifyHash) ?>" placeholder="$2y$10$..." autocomplete="off" required />
+        </div>
+        <div style="margin-bottom:12px;">
+          <label for="verifyPass">PLAINTEXT PASSWORD</label>
+          <input type="text" id="verifyPass" name="verify_password" value="<?= h($verifyPassword) ?>" placeholder="Enter plaintext password..." autocomplete="off" required />
+        </div>
+        <button type="submit" id="btnVerify">Verify Match</button>
+      </form>
+
+      <div id="verStatus" class="status-pill <?php
+        if ($verifyResult === true) echo 'ok';
+        elseif ($verifyResult === false || ($errorMsg && $action === 'verify')) echo 'err';
+      ?>"><?php
+        if ($verifyResult === true) echo '✓ MATCH — Password matches this bcrypt hash.';
+        elseif ($verifyResult === false) echo '✗ NO MATCH — Password does not match this hash.';
+        elseif ($errorMsg && $action === 'verify') echo h($errorMsg);
+      ?></div>
+    </section>
+  </main>
+
+  <script>
+    const genForm = document.getElementById('genForm');
+    const genPassword = document.getElementById('genPassword');
+    const genCost = document.getElementById('genCost');
+    const genOutput = document.getElementById('genOutput');
+    const hashText = document.getElementById('hashText');
+    const sqlText = document.getElementById('sqlText');
+    const genError = document.getElementById('genError');
+    const copyStatus = document.getElementById('copyStatus');
+
+    const sqlTable = document.getElementById('sqlTable');
+    const sqlCol = document.getElementById('sqlCol');
+    const sqlWhere = document.getElementById('sqlWhere');
+
+    function updateSqlPreview() {
+      const hash = hashText.textContent.trim();
+      if (!hash) return;
+      const tbl = (sqlTable.value || 'users').replace(/[^a-zA-Z0-9_]/g, '');
+      const col = (sqlCol.value || 'password').replace(/[^a-zA-Z0-9_]/g, '');
+      const whr = sqlWhere.value.trim() || 'id = 1';
+      sqlText.textContent = `UPDATE \`${tbl}\` SET \`${col}\` = '${hash}' WHERE ${whr};`;
+    }
+    [sqlTable, sqlCol, sqlWhere].forEach((el) => el.addEventListener('input', updateSqlPreview));
+    updateSqlPreview();
+
+    document.getElementById('btnTogglePass').addEventListener('click', (e) => {
+      const isPass = genPassword.type === 'password';
+      genPassword.type = isPass ? 'text' : 'password';
+      e.target.textContent = isPass ? 'Hide' : 'Show';
+    });
+
+    document.getElementById('btnRandomPass').addEventListener('click', () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+      const buf = new Uint32Array(16);
+      crypto.getRandomValues(buf);
+      genPassword.value = Array.from(buf, (n) => chars[n % chars.length]).join('');
+      genPassword.type = 'text';
+      document.getElementById('btnTogglePass').textContent = 'Hide';
+    });
+
+    async function copyText(txt, msg) {
+      if (!txt) return;
+      try {
+        await navigator.clipboard.writeText(txt);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      copyStatus.textContent = msg;
+      setTimeout(() => { copyStatus.textContent = ''; }, 2000);
+    }
+
+    document.getElementById('btnCopyHash').addEventListener('click', () => copyText(hashText.textContent.trim(), 'Hash copied!'));
+    document.getElementById('btnCopySql').addEventListener('click', () => copyText(sqlText.textContent.trim(), 'SQL copied!'));
+
+    genForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      genError.className = 'status-pill';
+      genError.textContent = '';
+      const body = new URLSearchParams({
+        action: 'generate',
+        password: genPassword.value,
+        cost: genCost.value
+      });
+      const res = await fetch('bcrypt.php', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        body
+      });
+      const data = await res.json();
+      if (data.error) {
+        genError.className = 'status-pill err';
+        genError.textContent = data.error;
+        return;
+      }
+      hashText.textContent = data.hash;
+      genOutput.classList.add('show');
+      updateSqlPreview();
+    });
+
+    const verForm = document.getElementById('verForm');
+    const verStatus = document.getElementById('verStatus');
+    verForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = new URLSearchParams({
+        action: 'verify',
+        verify_hash: document.getElementById('verifyHash').value,
+        verify_password: document.getElementById('verifyPass').value
+      });
+      const res = await fetch('bcrypt.php', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        body
+      });
+      const data = await res.json();
+      if (data.error) {
+        verStatus.className = 'status-pill err';
+        verStatus.textContent = data.error;
+      } else if (data.verified) {
+        verStatus.className = 'status-pill ok';
+        verStatus.textContent = '✓ MATCH — Password matches this bcrypt hash.';
+      } else {
+        verStatus.className = 'status-pill err';
+        verStatus.textContent = '✗ NO MATCH — Password does not match this hash.';
+      }
+    });
+  </script>
+</body>
+</html>
+
