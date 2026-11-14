@@ -45,16 +45,24 @@
     </div>
 
     <div class="nav right">
-      <a href="./builder.html" class="gl-btn" title="Create Your Own Parking Environment & Maneuver Sandbox">
-        <span>🛠 CUSTOM LOT</span>
+      <a href="./builder.html" class="gl-btn" title="Create & Share Your Own 3D Parking Lot">
+        <span>🛠 BUILDER</span>
       </a>
 
-      <a href="./arkanoid.html" class="gl-btn" title="Play Arkanoid: Tonna Shatter 2026">
-        <span>ARKANOID</span>
-      </a>
+      <button type="button" id="vehicleBtn" class="gl-btn" commandfor="garageModal" command="show-modal" title="Select Vehicle (Compact, Sedan, SUV, Van)">
+        <span id="vehicleLabel">🚗 SEDAN</span>
+      </button>
+
+      <button type="button" id="leaderboardBtn" class="gl-btn" commandfor="leaderboardModal" command="show-modal" title="Stage &amp; Global Champions Leaderboard">
+        <span>🏆 RANKS</span>
+      </button>
+
+      <button type="button" id="examBtn" class="gl-btn" title="Start 5-Stage Precision License Exam">
+        <span>🪪 EXAM</span>
+      </button>
 
       <button type="button" id="chatToggleBtn" class="gl-btn" aria-expanded="false" aria-controls="chatDrawer" title="Open Community Comments & Stage Chatbox">
-        <span>💬 COMMENTS <b id="chatCountBadge" class="nav-pill-count">6</b></span>
+        <span>💬 <b id="chatCountBadge" class="nav-pill-count">6</b></span>
       </button>
 
       <button type="button" id="userAuthBtn" class="gl-btn auth-pill-btn" commandfor="authModal" command="show-modal" title="Sign In, Create Account, or Play as Guest">
@@ -88,6 +96,31 @@
   <div id="coachCue" class="coach-cue glass-panel" role="status" aria-live="polite">
     <span class="cue-dot"></span>
     <span id="coachCueText">Align rear axle with Bay 01 entrance, then reverse smoothly.</span>
+  </div>
+
+  <!-- License Exam Mode Live Tracker Banner -->
+  <div id="examHudBanner" class="exam-hud-banner glass-panel" role="status" aria-live="polite">
+    <span id="examStageText" style="color:var(--gold-bright)">🪪 EXAM 1/5</span>
+    <span id="examBumpsText">BUMPS: 0/3</span>
+    <span id="examTimeText">0.0s</span>
+    <button type="button" id="examQuitBtn" class="exam-quit-btn">✕ EXIT EXAM</button>
+  </div>
+
+  <!-- Live 3D Reverse Backup Camera Picture-in-Picture HUD -->
+  <div id="reverseCamHud" class="reverse-cam-hud glass-panel" aria-hidden="true">
+    <div class="rev-cam-header">
+      <span class="rev-cam-rec">REAR CAM · 3D</span>
+      <span id="revCamDistBadge" style="color:#4ade80">CLEAR</span>
+    </div>
+    <div id="reverseCamSlot" class="rev-cam-slot">
+      <svg viewBox="0 0 160 100" class="rev-cam-overlay" aria-hidden="true">
+        <path id="revCamGuideL" d="M 28 96 L 52 34" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="6 4" fill="none" />
+        <path id="revCamGuideR" d="M 132 96 L 108 34" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="6 4" fill="none" />
+        <line id="revCamBarRed" x1="56" y1="78" x2="104" y2="78" stroke="#ef4444" stroke-width="2" opacity="0.85" />
+        <line id="revCamBarOrg" x1="53" y1="56" x2="107" y2="56" stroke="#f97316" stroke-width="1.6" opacity="0.7" />
+        <line id="revCamBarGrn" x1="50" y1="36" x2="110" y2="36" stroke="#22c55e" stroke-width="1.4" opacity="0.55" />
+      </svg>
+    </div>
   </div>
 
   <!-- Stage Passed Celebration Sign -->
@@ -142,29 +175,38 @@
         <span class="mn-num">07</span>
         <span class="mn-t">Comments Chatbox</span>
       </button>
-      <a href="./builder.html" class="mn-go" style="--i:8;text-decoration:none">
+      <button type="button" class="mn-go" style="--i:8" id="menuGarageBtn" commandfor="garageModal" command="show-modal">
         <span class="mn-num">08</span>
-        <span class="mn-t">Custom Lot Builder (Sandbox)</span>
-      </a>
-      <a href="./arkanoid.html" class="mn-go" style="--i:9;text-decoration:none">
+        <span class="mn-t">Vehicle Garage (4 Cars)</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:9" id="menuLeaderboardBtn" commandfor="leaderboardModal" command="show-modal">
         <span class="mn-num">09</span>
-        <span class="mn-t">Arkanoid · Modern Shatter</span>
-      </a>
-      <a href="./bcrypt.html" class="mn-go" style="--i:10;text-decoration:none">
+        <span class="mn-t">Stage &amp; Global Leaderboard</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:10" id="menuExamBtn">
         <span class="mn-num">10</span>
-        <span class="mn-t">Bcrypt Hash Generator</span>
+        <span class="mn-t">5-Stage License Exam</span>
+      </button>
+      <a href="./builder.html" class="mn-go" style="--i:11;text-decoration:none">
+        <span class="mn-num">11</span>
+        <span class="mn-t">Custom Lot Builder (Shareable)</span>
+      </a>
+      <a href="./arkanoid.html" class="mn-go" style="--i:12;text-decoration:none">
+        <span class="mn-num">12</span>
+        <span class="mn-t">Arkanoid · Modern Shatter</span>
       </a>
     </div>
 
     <div class="mn-rule" style="--i:4"></div>
-    <p class="mn-k" style="--i:5">CONTROLS &amp; AMBIENCE</p>
+    <p class="mn-k" style="--i:5">CONTROLS, RAIN &amp; AMBIENCE</p>
     <p class="mn-controls-hint" style="--i:6">
       <b>W / ↑</b> Drive &nbsp;·&nbsp; <b>S / ↓</b> Brake / Reverse<br/>
       <b>A D / ← →</b> Steer &nbsp;·&nbsp; <b>SPACE</b> Handbrake &nbsp;·&nbsp; <b>R</b> Reset
     </p>
     <div class="mn-actions" style="--i:7">
-      <button type="button" class="mn-chip" id="menuAmbBtn">DAY / NIGHT LOT</button>
-      <button type="button" class="mn-chip" id="menuGuideBtn">TOGGLE GUIDES</button>
+      <button type="button" class="mn-chip" id="menuAmbBtn">DAY / NIGHT</button>
+      <button type="button" class="mn-chip" id="menuWeatherBtn">DRY / RAIN</button>
+      <button type="button" class="mn-chip" id="menuGuideBtn">GUIDES</button>
     </div>
   </nav>
 
@@ -245,6 +287,14 @@
         <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
         <line x1="1" y1="12" x2="3" y2="12"></line>
         <line x1="21" y1="12" x2="23" y2="12"></line>
+      </svg>
+    </button>
+    <button type="button" id="weatherBtn" class="rn-round" data-weather="dry" aria-label="Toggle Dry or Rain Wet Asphalt" aria-pressed="false" title="Toggle Rain &amp; Wet Asphalt Physics">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path>
+        <line x1="8" y1="19" x2="8" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="22"></line>
+        <line x1="16" y1="19" x2="16" y2="21"></line>
       </svg>
     </button>
     <button type="button" id="demoBtn" class="rn-round" aria-label="Watch auto-drive demo" aria-pressed="false" title="Simulate Drive to Goal (Demo)">
@@ -795,6 +845,82 @@
             <p id="firebaseConfigStatus" class="an-change-status" role="status" aria-live="polite"></p>
           </form>
         </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ====================================================================
+       10. VEHICLE GARAGE, GLOBAL LEADERBOARD & LICENSE EXAM MODALS
+       ==================================================================== -->
+  <dialog id="garageModal" class="garuda-modal" closedby="any" aria-labelledby="garageTitle">
+    <div class="sm-panel glass-panel" style="max-width:680px">
+      <div class="sm-head">
+        <div>
+          <p class="mn-k" style="margin:0;color:var(--gold-bright)">3D VEHICLE GARAGE</p>
+          <h2 id="garageTitle" class="sm-title">Select Vehicle Class</h2>
+          <p class="sm-sub">Each vehicle changes wheelbase, body width, turning radius, and 3D model.</p>
+        </div>
+        <button type="button" class="rn-round sm-close" commandfor="garageModal" command="close" aria-label="Close garage">✕</button>
+      </div>
+      <div id="garageGrid" class="garage-grid"></div>
+    </div>
+  </dialog>
+
+  <dialog id="leaderboardModal" class="garuda-modal" closedby="any" aria-labelledby="lbTitle">
+    <div class="sm-panel glass-panel" style="max-width:740px">
+      <div class="sm-head">
+        <div>
+          <p class="mn-k" style="margin:0;color:var(--gold-bright)">FASTEST CLEAN PARKS · CLOUD + LOCAL</p>
+          <h2 id="lbTitle" class="sm-title">Precision Leaderboard</h2>
+          <p class="sm-sub" id="lbSubText">Comparing clean runs across stages and academy stars.</p>
+        </div>
+        <button type="button" class="rn-round sm-close" commandfor="leaderboardModal" command="close" aria-label="Close leaderboard">✕</button>
+      </div>
+      <div class="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab on" id="lbTabStage" data-lb="stage">CURRENT STAGE TOP</button>
+        <button type="button" class="auth-tab" id="lbTabOverall" data-lb="overall">ACADEMY CHAMPIONS</button>
+      </div>
+      <div class="lb-table-wrap">
+        <table class="lb-table">
+          <thead id="lbHead"></thead>
+          <tbody id="lbBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="licenseModal" class="garuda-modal" closedby="any" aria-labelledby="licModalTitle">
+    <div class="sm-panel glass-panel" style="max-width:640px">
+      <div class="sm-head">
+        <div>
+          <p class="mn-k" style="margin:0;color:var(--gold-bright)">TONNA 2026 CERTIFICATION</p>
+          <h2 id="licModalTitle" class="sm-title">Digital Parking License</h2>
+        </div>
+        <button type="button" class="rn-round sm-close" commandfor="licenseModal" command="close" aria-label="Close license">✕</button>
+      </div>
+      <div class="license-card">
+        <div class="license-top">
+          <div>
+            <p class="mn-k" style="margin:0;color:var(--dim)">ISSUED TO DRIVER</p>
+            <h3 id="licDriverName" style="margin:4px 0 0;font:800 22px/1.1 'Geist',sans-serif;color:#fff">Guest Driver</h3>
+          </div>
+          <span id="licTierBadge" class="license-tier-badge">GOLD MASTER</span>
+        </div>
+        <div class="license-stats">
+          <div><span>GRADE</span><strong id="licGrade">A+</strong></div>
+          <div><span>AVG SCORE</span><strong id="licScore">95%</strong></div>
+          <div><span>TOTAL TIME</span><strong id="licTime">42.1s</strong></div>
+          <div><span>VEHICLE</span><strong id="licVehicle">SEDAN</strong></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font:600 10px/1 'Geist Mono',monospace;color:var(--dim)">
+          <span id="licIdText">CERT ID: TONNA-2026-0001</span>
+          <span>5 / 5 EXAM BAYS CLEARED</span>
+        </div>
+      </div>
+      <div class="an-gate-actions" style="margin-top:12px">
+        <button type="button" id="licDownloadBtn" class="btn-gold" style="height:40px;padding:0 18px">⬇ DOWNLOAD LICENSE PNG</button>
+        <button type="button" id="licCopyBtn" class="mn-chip">📋 COPY RESULT</button>
+        <button type="button" id="licRestartExamBtn" class="mn-chip">↺ RETAKE EXAM</button>
       </div>
     </div>
   </dialog>

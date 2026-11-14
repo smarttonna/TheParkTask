@@ -97,18 +97,28 @@ const sfx = new SoundEngine();
 const CUSTOM_LOT_STORAGE_KEY = 'theparktask_custom_lot_3d_v1';
 const LOT_BOUNDS = { w: 1100, h: 800 };
 
+const VEHICLE_PROFILES = [
+  { id: 'compact', short: 'COMPACT', length: 72, width: 38, wheelbase: 44, maxSteer: 0.68, maxFwd: 150, maxRev: -95, bodyColor: '#2563eb' },
+  { id: 'sedan', short: 'SEDAN', length: 82, width: 40, wheelbase: 54, maxSteer: 0.62, maxFwd: 145, maxRev: -98, bodyColor: '#c81d25' },
+  { id: 'suv', short: 'SUV', length: 94, width: 44, wheelbase: 60, maxSteer: 0.56, maxFwd: 140, maxRev: -92, bodyColor: '#0f766e' },
+  { id: 'van', short: 'VAN', length: 106, width: 48, wheelbase: 68, maxSteer: 0.50, maxFwd: 132, maxRev: -85, bodyColor: '#d97706' }
+];
+let vehIdx = 1; // Default Sports Sedan
+let weatherMode = 'dry';
+
 const CAR = {
   x: -240,
   y: -140,
   angle: 0,
   speed: 0,
   steer: 0,
-  length: 82,
-  width: 40,
-  wheelbase: 54,
-  maxSteer: 0.62,
-  maxFwd: 145,
-  maxRev: -98
+  length: VEHICLE_PROFILES[1].length,
+  width: VEHICLE_PROFILES[1].width,
+  wheelbase: VEHICLE_PROFILES[1].wheelbase,
+  maxSteer: VEHICLE_PROFILES[1].maxSteer,
+  maxFwd: VEHICLE_PROFILES[1].maxFwd,
+  maxRev: VEHICLE_PROFILES[1].maxRev,
+  bodyColor: VEHICLE_PROFILES[1].bodyColor
 };
 
 const PRESETS = {
@@ -502,8 +512,33 @@ function build3DCarMesh({ length = 82, width = 40, bodyColor = '#c81d25', isPlay
 }
 
 // Player 3D Car
-const playerCarMesh = build3DCarMesh({ length: CAR.length, width: CAR.width, bodyColor: '#c81d25', isPlayer: true });
+let playerCarMesh = build3DCarMesh({ length: CAR.length, width: CAR.width, bodyColor: CAR.bodyColor || '#c81d25', isPlayer: true });
 scene.add(playerCarMesh);
+
+function rebuildPlayerBuilderMesh() {
+  if (playerCarMesh) scene.remove(playerCarMesh);
+  playerCarMesh = build3DCarMesh({ length: CAR.length, width: CAR.width, bodyColor: CAR.bodyColor || '#c81d25', isPlayer: true });
+  scene.add(playerCarMesh);
+}
+
+// 3D Rain Particles & Rear Reverse Camera
+const RAIN_COUNT = 750;
+const rainPosArr = new Float32Array(RAIN_COUNT * 3);
+for (let i = 0; i < RAIN_COUNT; i++) {
+  rainPosArr[i * 3] = (Math.random() - 0.5) * LOT_BOUNDS.w;
+  rainPosArr[i * 3 + 1] = Math.random() * 260 + 10;
+  rainPosArr[i * 3 + 2] = (Math.random() - 0.5) * LOT_BOUNDS.h;
+}
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPosArr, 3));
+const rainPoints = new THREE.Points(
+  rainGeo,
+  new THREE.PointsMaterial({ color: '#bae6fd', size: 2.2, transparent: true, opacity: 0.65 })
+);
+rainPoints.visible = false;
+scene.add(rainPoints);
+
+const reverseCamera = new THREE.PerspectiveCamera(68, 1.6, 2, 1600);
 
 // Start Ghost Pad ("MY CAR START" marker on the lot so player can drag where car begins!)
 const startMarkerGroup = new THREE.Group();
@@ -598,7 +633,25 @@ function create3DObstacle(obs) {
   const grp = new THREE.Group();
   grp.userData.pickItem = { kind: 'obstacle', id: obs.id };
 
-  if (obs.type === 'cone') {
+  if (obs.type === 'pedestrian') {
+    const torso = new THREE.Mesh(
+      new THREE.CylinderGeometry(5, 5.5, 14, 14),
+      new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.5 })
+    );
+    torso.position.y = 17;
+    torso.castShadow = true;
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(4, 14, 14),
+      new THREE.MeshStandardMaterial({ color: '#fcd34d', roughness: 0.6 })
+    );
+    head.position.y = 28;
+    const legs = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.2, 4.2, 11, 12),
+      new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.85 })
+    );
+    legs.position.y = 5.5;
+    grp.add(legs, torso, head);
+  } else if (obs.type === 'cone') {
     const r = obs.r || 10;
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(r * 1.1, r * 1.25, 3, 16),
@@ -671,6 +724,7 @@ function create3DObstacle(obs) {
     grp.add(curb);
   }
 
+  grp.userData.obsRef = obs;
   grp.position.set(obs.x, 0, obs.y);
   grp.rotation.y = -(obs.angle || 0);
   return grp;
@@ -725,6 +779,9 @@ function getRectCorners(cx, cy, w, h, angle) {
 function pointToObsDist(px, py, obs) {
   if (obs.type === 'cone') {
     return Math.hypot(px - obs.x, py - obs.y) - (obs.r || 10);
+  }
+  if (obs.type === 'pedestrian') {
+    return Math.hypot(px - obs.x, py - obs.y) - 9;
   }
   const a = obs.angle || 0;
   const dx = px - obs.x;
@@ -831,7 +888,7 @@ function checkParked(forceParkClick = false) {
   const rawAngleDiff = Math.abs(Math.atan2(Math.sin(CAR.angle - t.angle), Math.cos(CAR.angle - t.angle)));
   const angleDiff = Math.min(rawAngleDiff, Math.abs(rawAngleDiff - Math.PI));
   const aligned = angleDiff < 0.18;
-  const centered = Math.abs(lx) < (t.h - CAR.length) / 2 + 12 && Math.abs(ly) < (t.w - CAR.width) / 2 + 8;
+  const centered = Math.abs(lx) < Math.max(8, (t.h - CAR.length) / 2 + 12) && Math.abs(ly) < Math.max(6, (t.w - CAR.width) / 2 + 8);
   const insideRoughly = Math.abs(lx) < t.h / 2 + 14 && Math.abs(ly) < t.w / 2 + 12;
   const stopped = Math.abs(CAR.speed) < 15;
   const gearPBtn = document.getElementById('gearP');
@@ -1471,6 +1528,10 @@ canvasEl.addEventListener('pointermove', (e) => {
     const ny = Math.max(-LOT_BOUNDS.h / 2 + 45, Math.min(LOT_BOUNDS.h / 2 - 45, rayHit.z + dragOffset.y));
     draggingItem.targetObj.x = Math.round(nx);
     draggingItem.targetObj.y = Math.round(ny);
+    if ('baseX' in draggingItem.targetObj || draggingItem.targetObj.patrolDx) {
+      draggingItem.targetObj.baseX = draggingItem.targetObj.x;
+      draggingItem.targetObj.baseY = draggingItem.targetObj.y;
+    }
     draggingItem.obj.position.set(draggingItem.targetObj.x, 0, draggingItem.targetObj.y);
 
     if (draggingItem.ref.kind === 'start') {
@@ -1525,7 +1586,9 @@ document.querySelectorAll('[data-add-obs]').forEach((btn) => {
       wall: { type: 'wall', label: 'Wall', w: 160, h: 24 },
       curb: { type: 'curb', label: 'Curb', w: 180, h: 22 },
       pillar: { type: 'pillar', label: 'Pillar', w: 36, h: 36 },
-      cone: { type: 'cone', label: 'Cone', r: 10 }
+      cone: { type: 'cone', label: 'Cone', r: 10 },
+      traffic: { type: 'car', label: 'Moving Car', w: 82, h: 40, color: '#6366f1', patrolDx: 150, patrolSpeed: 0.85 },
+      walker: { type: 'pedestrian', label: 'Walker', w: 18, h: 18, patrolDx: 110, patrolSpeed: 0.9 }
     };
     const spec = templates[kind] || templates.sedan;
     const newObs = {
@@ -1533,6 +1596,8 @@ document.querySelectorAll('[data-add-obs]').forEach((btn) => {
       ...spec,
       x: jitterX,
       y: jitterY,
+      baseX: jitterX,
+      baseY: jitterY,
       angle: 0
     };
     customEnv.obstacles.push(newObs);
@@ -1661,6 +1726,53 @@ document.getElementById('saveCustomLotBtn')?.addEventListener('click', () => {
   if (selEl) selEl.value = 'custom_saved';
   document.getElementById('dockTitle').innerHTML = `<b>SANDBOX</b>My Saved Custom Lot`;
   setCoachCue('✓ Saved your 3D custom lot locally! You can reload it anytime.', 'ok');
+});
+
+document.getElementById('shareCustomLotBtn')?.addEventListener('click', () => {
+  try {
+    const json = JSON.stringify(customEnv);
+    const bytes = new TextEncoder().encode(json);
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    const encoded = btoa(bin);
+    const shareUrl = `${location.origin}${location.pathname}#lot=${encodeURIComponent(encoded)}`;
+    history.replaceState(null, '', `#lot=${encodeURIComponent(encoded)}`);
+    navigator.clipboard?.writeText(shareUrl).catch(() => {});
+    setCoachCue('🔗 Shareable 3D Lot Link copied! Paste it to friends so they can drive your setup.', 'ok');
+  } catch {
+    setCoachCue('Could not encode share link.', 'warn');
+  }
+});
+
+document.getElementById('builderVehicleBtn')?.addEventListener('click', () => {
+  vehIdx = (vehIdx + 1) % VEHICLE_PROFILES.length;
+  const p = VEHICLE_PROFILES[vehIdx];
+  CAR.length = p.length;
+  CAR.width = p.width;
+  CAR.wheelbase = p.wheelbase;
+  CAR.maxSteer = p.maxSteer;
+  CAR.maxFwd = p.maxFwd;
+  CAR.maxRev = p.maxRev;
+  CAR.bodyColor = p.bodyColor;
+  const lbl = document.getElementById('builderVehicleLabel');
+  if (lbl) lbl.textContent = `🚗 ${p.short}`;
+  rebuildPlayerBuilderMesh();
+  setCoachCue(`Switched to ${p.short} (${p.length}px length · ${p.wheelbase}px wheelbase)!`, 'ok');
+});
+
+document.getElementById('weatherBtn')?.addEventListener('click', () => {
+  weatherMode = weatherMode === 'dry' ? 'rain' : 'dry';
+  const isRain = weatherMode === 'rain';
+  const wBtn = document.getElementById('weatherBtn');
+  if (wBtn) {
+    wBtn.dataset.weather = weatherMode;
+    wBtn.classList.toggle('rain-on', isRain);
+    wBtn.setAttribute('aria-pressed', String(isRain));
+  }
+  groundMat.roughness = isRain ? 0.24 : 0.88;
+  groundMat.metalness = isRain ? 0.28 : 0.08;
+  groundMat.needsUpdate = true;
+  setCoachCue(isRain ? '🌧 RAIN & WET ASPHALT ACTIVE in 3D Builder!' : '☀ DRY ASPHALT restored.', 'neutral');
 });
 
 document.getElementById('clearObstaclesBtn')?.addEventListener('click', () => {
@@ -1903,6 +2015,24 @@ bindPadBtn('btnGas', 'gas');
 function updatePhysics(dt) {
   if (appMode !== 'drive' || bayCleared) return;
 
+  // Step moving lane traffic & crossing pedestrians
+  for (const obs of customEnv.obstacles) {
+    if (!obs.patrolDx && !obs.patrolDy) continue;
+    const distToCar = Math.hypot(CAR.x - obs.x, CAR.y - obs.y);
+    if (distToCar < 60) continue; // Yield cleanly when player car is close
+    obs.patrolClock = (obs.patrolClock || 0) + dt;
+    const ph = obs.patrolClock * (obs.patrolSpeed || 0.85);
+    const prevOx = obs.x;
+    const prevOy = obs.y;
+    obs.x = (obs.baseX ?? obs.x) + Math.sin(ph) * (obs.patrolDx || 0);
+    obs.y = (obs.baseY ?? obs.y) + Math.sin(ph) * (obs.patrolDy || 0);
+    const dvx = obs.x - prevOx;
+    const dvy = obs.y - prevOy;
+    if (Math.hypot(dvx, dvy) > 0.02) {
+      obs.angle = Math.atan2(dvy, dvx);
+    }
+  }
+
   if (isReplaying && replayPlan) {
     replayTime += dt;
     const list = replayPlan.samples;
@@ -1982,13 +2112,15 @@ function updatePhysics(dt) {
   }
   syncStickVisual();
 
-  const accel = 260;
-  const drag = 190;
+  const isRain = weatherMode === 'rain';
+  const accel = isRain ? 230 : 260;
+  const drag = isRain ? 130 : 190;
+  const brakeDecel = isRain ? 305 : 460;
   const wantFwd = keys.up || (keys.gas && activeGear === 'D');
   const wantRev = keys.down || (keys.gas && activeGear === 'R');
   if (keys.brake) {
     if (Math.abs(CAR.speed) < 18) CAR.speed = 0;
-    else CAR.speed -= Math.sign(CAR.speed) * 460 * dt;
+    else CAR.speed -= Math.sign(CAR.speed) * brakeDecel * dt;
   } else if (keys.gas && activeGear === 'P') {
     CAR.speed = 0;
     setCoachCue('Car is in PARK (P) — click D or R to drive.', 'neutral');
@@ -2013,7 +2145,8 @@ function updatePhysics(dt) {
   const prevY = CAR.y;
   const prevAngle = CAR.angle;
 
-  const angularVel = (CAR.speed / CAR.wheelbase) * Math.tan(CAR.steer);
+  const wetGrip = isRain && Math.abs(CAR.speed) > 90 ? 0.85 : 1.0;
+  const angularVel = (CAR.speed / CAR.wheelbase) * Math.tan(CAR.steer * wetGrip);
   CAR.angle += angularVel * dt;
   CAR.x += Math.cos(CAR.angle) * CAR.speed * dt;
   CAR.y += Math.sin(CAR.angle) * CAR.speed * dt;
@@ -2097,6 +2230,32 @@ function update3DSceneSync(dt) {
     }
   });
 
+  // Sync moving patrol traffic & walking pedestrians
+  for (const child of obstacleGroup.children) {
+    const obs = child.userData?.obsRef;
+    if (obs && (obs.patrolDx || obs.patrolDy)) {
+      child.position.set(obs.x, 0, obs.y);
+      child.rotation.y = -(obs.angle || 0);
+    }
+  }
+
+  // Animate 3D rain streaks when Rain/Wet weather is enabled
+  if (weatherMode === 'rain') {
+    rainPoints.visible = true;
+    const pos = rainPoints.geometry.attributes.position.array;
+    for (let i = 0; i < RAIN_COUNT; i++) {
+      pos[i * 3 + 1] -= 5.8;
+      pos[i * 3] -= 0.7;
+      if (pos[i * 3 + 1] < 2) {
+        pos[i * 3 + 1] = 260;
+        pos[i * 3] = (Math.random() - 0.5) * LOT_BOUNDS.w;
+      }
+    }
+    rainPoints.geometry.attributes.position.needsUpdate = true;
+  } else {
+    rainPoints.visible = false;
+  }
+
   // Update Target Park Box color state (Gold -> Amber -> Emerald Green)
   const bayColor =
     bayCleared || bayPosState === 'aligned'
@@ -2139,9 +2298,62 @@ function resizeRenderer() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
   updateViewThumb();
 }
 window.addEventListener('resize', resizeRenderer);
+
+function renderReverseCameraPIP() {
+  const hudEl = document.getElementById('reverseCamHud');
+  const slotEl = document.getElementById('reverseCamSlot');
+  if (!hudEl || !slotEl) return;
+
+  const isRevActive = appMode === 'drive' && (activeGear === 'R' || CAR.speed < -3) && !isReplaying && !bayCleared;
+  hudEl.classList.toggle('is-active', isRevActive);
+  hudEl.setAttribute('aria-hidden', String(!isRevActive));
+  if (!isRevActive) return;
+
+  const liveClearance = getCarClearance(CAR.x, CAR.y, CAR.angle).dist;
+  const info = getProximityLightInfo(liveClearance);
+  const badgeEl = document.getElementById('revCamDistBadge');
+  if (badgeEl) {
+    badgeEl.textContent = liveClearance === Infinity ? 'CLEAR' : `${Math.max(0, Math.round(liveClearance * 4.5))} CM`;
+    badgeEl.style.color = info.hex;
+  }
+  const guideL = document.getElementById('revCamGuideL');
+  const guideR = document.getElementById('revCamGuideR');
+  if (guideL) guideL.setAttribute('stroke', info.hex);
+  if (guideR) guideR.setAttribute('stroke', info.hex);
+
+  const rect = slotEl.getBoundingClientRect();
+  if (rect.width < 10 || rect.height < 10) return;
+
+  const cos = Math.cos(CAR.angle);
+  const sin = Math.sin(CAR.angle);
+  const bumperX = CAR.x - cos * (CAR.length * 0.48);
+  const bumperZ = CAR.y - sin * (CAR.length * 0.48);
+  reverseCamera.position.set(bumperX, 18, bumperZ);
+  reverseCamera.lookAt(
+    CAR.x - cos * 190 - Math.sin(CAR.steer) * 28,
+    5,
+    CAR.y - sin * 190 + Math.cos(CAR.steer) * 28
+  );
+  reverseCamera.aspect = rect.width / rect.height;
+  reverseCamera.updateProjectionMatrix();
+
+  const x = Math.round(rect.left);
+  const yBottom = Math.round(window.innerHeight - rect.bottom);
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+
+  renderer.setScissorTest(true);
+  renderer.setViewport(x, yBottom, w, h);
+  renderer.setScissor(x, yBottom, w, h);
+  renderer.clearDepth();
+  renderer.render(scene, reverseCamera);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+}
 
 // Main Animation Loop
 let lastTime = performance.now();
@@ -2151,11 +2363,33 @@ function animate(now) {
   updatePhysics(dt);
   update3DSceneSync(dt);
   renderer.render(scene, camera);
+  renderReverseCameraPIP();
   requestAnimationFrame(animate);
+}
+
+// Decode Shared Community Lot URL Hash (#lot=...) if present
+let openedSharedLot = false;
+if (location.hash.startsWith('#lot=')) {
+  try {
+    const rawEnc = decodeURIComponent(location.hash.slice(5));
+    const bin = atob(rawEnc);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const parsed = JSON.parse(new TextDecoder().decode(bytes));
+    if (parsed && parsed.start && parsed.target && Array.isArray(parsed.obstacles)) {
+      customEnv = cloneEnv(parsed);
+      document.getElementById('dockTitle').innerHTML = `<b>SHARED LOT</b>${customEnv.name || 'Shared Custom Lot'}`;
+      openedSharedLot = true;
+    }
+  } catch {
+    // Ignore malformed shared lot hash
+  }
 }
 
 // Initialize Builder & Start 3D Loop
 rebuild3DEnvironmentMeshes();
 resizeRenderer();
-setMode('build');
+setMode(openedSharedLot ? 'drive' : 'build');
+if (openedSharedLot) {
+  setCoachCue('🔗 Loaded Shared 3D Community Lot! Drive & park inside the green zone or click 🛠 BUILD LOT to tweak.', 'ok');
+}
 requestAnimationFrame(animate);

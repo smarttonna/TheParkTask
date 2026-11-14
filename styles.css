@@ -2685,3 +2685,277 @@ dialog.garuda-modal::backdrop {
   font: 500 11px/1 "Geist Mono", monospace;
 }
 
+/* ==========================================================================
+   REVERSE BACKUP CAMERA PIP, WEATHER, EXAM BANNER, GARAGE & LICENSE
+   ========================================================================== */
+.reverse-cam-hud {
+  position: fixed;
+  right: calc(28px * var(--ui));
+  bottom: calc(222px * var(--ui));
+  z-index: 5;
+  width: 224px;
+  border-radius: 16px;
+  padding: 7px;
+  background: rgba(12, 10, 12, 0.72);
+  border: 1.5px solid rgba(255, 197, 112, 0.45);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.reverse-cam-hud.is-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.rev-cam-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 700 9px/1 "Geist Mono", monospace;
+  letter-spacing: 0.09em;
+  color: #f8fafc;
+}
+
+.rev-cam-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #f87171;
+}
+
+.rev-cam-rec::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.rev-cam-slot {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+}
+
+.rev-cam-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.rn-round.rain-on {
+  border-color: #38bdf8;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.22);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+}
+
+.exam-hud-banner {
+  position: fixed;
+  top: calc(132px * var(--ui));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(16, 11, 14, 0.88);
+  border: 1.5px solid rgba(255, 197, 112, 0.62);
+  font: 700 10.5px/1 "Geist Mono", monospace;
+  color: var(--ink);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
+}
+
+body.is-exam .exam-hud-banner {
+  display: inline-flex;
+}
+
+.exam-quit-btn {
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font: 700 9px/1 "Geist Mono", monospace;
+  cursor: pointer;
+}
+
+.garage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.garage-card {
+  text-align: left;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.18s ease;
+}
+
+.garage-card:hover {
+  border-color: var(--gold-bright);
+  background: rgba(255, 197, 112, 0.10);
+}
+
+.garage-card.active {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+  box-shadow: 0 0 18px rgba(74, 222, 128, 0.2);
+}
+
+.garage-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 700 13px/1.2 "Geist Mono", monospace;
+  color: var(--gold-bright);
+}
+
+.garage-card p {
+  margin: 0;
+  font: 400 11.5px/1.4 "Geist", sans-serif;
+  color: var(--dim);
+}
+
+.garage-specs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font: 600 9.5px/1 "Geist Mono", monospace;
+  color: rgba(246, 250, 249, 0.85);
+}
+
+.lb-table-wrap {
+  margin-top: 10px;
+  max-height: 52dvh;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 500 11.5px/1.3 "Geist Mono", monospace;
+}
+
+.lb-table th,
+.lb-table td {
+  padding: 9px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.lb-table th {
+  font-size: 9.5px;
+  color: var(--gold-bright);
+  background: rgba(255, 255, 255, 0.05);
+  position: sticky;
+  top: 0;
+}
+
+.lb-table tr.is-me {
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.license-card {
+  margin-top: 10px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 2px solid var(--gold-bright);
+  background: linear-gradient(145deg, #211612, #0d0a0c 70%, #24190c);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.license-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 197, 112, 0.25);
+  padding-bottom: 10px;
+}
+
+.license-tier-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffc570, #d97706);
+  color: #160c04;
+  font: 800 10px/1 "Geist Mono", monospace;
+  letter-spacing: 0.1em;
+}
+
+.license-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.license-stats div {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.license-stats span {
+  display: block;
+  font: 600 8.5px/1 "Geist Mono", monospace;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+
+.license-stats strong {
+  font: 700 13px/1.1 "Geist Mono", monospace;
+  color: var(--gold-bright);
+}
+
+@media (max-width: 760px), (max-aspect-ratio: 1 / 1) {
+  .reverse-cam-hud {
+    width: 152px;
+    left: 14px;
+    right: auto;
+    bottom: auto;
+    top: calc(max(12px, env(safe-area-inset-top)) + 124px);
+    padding: 5px;
+  }
+
+  .exam-hud-banner {
+    top: calc(max(12px, env(safe-area-inset-top)) + 118px);
+    font-size: 9px;
+    padding: 5px 10px;
+    gap: 8px;
+  }
+
+  .garage-grid,
+  .license-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+

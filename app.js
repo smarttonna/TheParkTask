@@ -686,18 +686,97 @@ const BAYS = buildAllStages();
 // ==========================================================================
 // 4. VEHICLE STATE & ACKERMANN KINEMATICS
 // ==========================================================================
+const VEHICLE_PROFILES = {
+  compact: {
+    id: 'compact',
+    name: 'Compact Hatch',
+    short: 'COMPACT',
+    shape: 'compact',
+    length: 76,
+    width: 40,
+    wheelbase: 46,
+    maxSteer: 0.68,
+    maxFwd: 170,
+    maxRev: -95,
+    bodyColor: '#2563eb',
+    desc: 'Short wheelbase hatchback — tightest turning radius for squeezing into narrow city bays.'
+  },
+  sedan: {
+    id: 'sedan',
+    name: 'Sports Sedan',
+    short: 'SEDAN',
+    shape: 'sedan',
+    length: 92,
+    width: 44,
+    wheelbase: 58,
+    maxSteer: 0.62,
+    maxFwd: 175,
+    maxRev: -125,
+    bodyColor: '#cc1622',
+    desc: 'Balanced crimson Garuda sedan — official Academy trainer with crisp Ackermann geometry.'
+  },
+  suv: {
+    id: 'suv',
+    name: 'Executive SUV',
+    short: 'SUV',
+    shape: 'suv',
+    length: 102,
+    width: 48,
+    wheelbase: 64,
+    maxSteer: 0.56,
+    maxFwd: 165,
+    maxRev: -110,
+    bodyColor: '#0f766e',
+    desc: 'Longer, wider SUV stance — requires wider swing-out setup before cutting toward the bay.'
+  },
+  van: {
+    id: 'van',
+    name: 'Delivery Van',
+    short: 'VAN',
+    shape: 'van',
+    length: 112,
+    width: 50,
+    wheelbase: 72,
+    maxSteer: 0.50,
+    maxFwd: 150,
+    maxRev: -95,
+    bodyColor: '#d97706',
+    desc: 'Pro challenge box van — long wheelbase & wide turning circle demanding early pivots.'
+  }
+};
+
+const VEHICLE_STORAGE_KEY = 'theparktask_vehicle_v1';
+const savedVehId = localStorage.getItem(VEHICLE_STORAGE_KEY);
+const initialVeh = VEHICLE_PROFILES[savedVehId] || VEHICLE_PROFILES.sedan;
+
 const CAR = {
   x: 0,
   y: 0,
   angle: 0,
-  speed: 0,        // px/s (positive = forward, negative = reverse)
-  steer: 0,        // radians (-0.62 to +0.62)
-  wheelbase: 58,   // L in px (distance between rear and front axle)
-  length: 92,      // total car body length
-  width: 44,       // total car body width
-  maxSteer: 0.62,  // ~35.5 deg
-  maxFwd: 175,
-  maxRev: -125
+  speed: 0,
+  steer: 0,
+  vehicleId: initialVeh.id,
+  vehicleName: initialVeh.name,
+  shape: initialVeh.shape,
+  wheelbase: initialVeh.wheelbase,
+  length: initialVeh.length,
+  width: initialVeh.width,
+  maxSteer: initialVeh.maxSteer,
+  maxFwd: initialVeh.maxFwd,
+  maxRev: initialVeh.maxRev,
+  bodyColor: initialVeh.bodyColor
+};
+
+let weatherMode = 'dry'; // 'dry' | 'rain'
+const examState = {
+  active: false,
+  stageIds: ['001', '015', '032', '058', '097'],
+  stepIdx: 0,
+  bumps: 0,
+  maxBumps: 3,
+  scores: [],
+  startMs: 0,
+  timerInterval: null
 };
 
 const STORAGE_KEY = 'garuda_drive_cleared_v1';
@@ -941,6 +1020,31 @@ function loadBay(idx) {
   currentBayIdx = (idx + BAYS.length) % BAYS.length;
   const bay = BAYS[currentBayIdx];
 
+  // Reset dynamic traffic and add calm lane hazard on selected Street/Mall/Plaza stages
+  bay.obstacles = bay.obstacles.filter((o) => !o.isDynamicTraffic);
+  const chapterNum = Math.floor(currentBayIdx / 12);
+  if (chapterNum >= 2 && currentBayIdx % 4 === 2) {
+    const laneY = bay.start.y > 0 ? Math.min(-75, bay.target.y - 85) : Math.max(75, bay.target.y + 85);
+    const safeLaneY = Math.max(-210, Math.min(210, laneY));
+    const isPed = currentBayIdx % 8 === 6;
+    bay.obstacles.push({
+      id: `dyn-${bay.id}`,
+      isDynamicTraffic: true,
+      type: isPed ? 'pedestrian' : 'car',
+      x: 0,
+      y: safeLaneY,
+      baseX: 0,
+      baseY: safeLaneY,
+      patrolDx: isPed ? 95 : 195,
+      patrolDy: 0,
+      patrolSpeed: isPed ? 0.85 : 0.72,
+      w: isPed ? 18 : 80,
+      h: isPed ? 18 : 38,
+      angle: 0,
+      color: '#6366f1'
+    });
+  }
+
   CAR.x = bay.start.x;
   CAR.y = bay.start.y;
   CAR.angle = bay.start.angle;
@@ -1026,6 +1130,9 @@ function pointToObsDist(px, py, obs) {
   if (obs.type === 'cone') {
     return Math.hypot(px - obs.x, py - obs.y) - obs.r;
   }
+  if (obs.type === 'pedestrian') {
+    return Math.hypot(px - obs.x, py - obs.y) - 9;
+  }
   const a = obs.angle || 0;
   const dx = px - obs.x;
   const dy = py - obs.y;
@@ -1082,7 +1189,9 @@ function checkParked(bay, dt, forceParkClick = false) {
   const rawAngleDiff = Math.abs(Math.atan2(Math.sin(CAR.angle - t.angle), Math.cos(CAR.angle - t.angle)));
   const angleDiff = Math.min(rawAngleDiff, Math.abs(rawAngleDiff - Math.PI));
   const aligned = angleDiff < 0.18;
-  const centered = Math.abs(lx) < (t.h - CAR.length) / 2 + 10 && Math.abs(ly) < (t.w - CAR.width) / 2 + 7;
+  const centered =
+    Math.abs(lx) < Math.max(9, (t.h - CAR.length) / 2 + 10) &&
+    Math.abs(ly) < Math.max(6, (t.w - CAR.width) / 2 + 7);
   const insideRoughly = Math.abs(lx) < t.h / 2 + 12 && Math.abs(ly) < t.w / 2 + 10;
   const stopped = Math.abs(CAR.speed) < 14;
   const gearPBtn = document.getElementById('gearP');
@@ -1187,6 +1296,12 @@ function completeBay(bay, angleDiff, offsetPx) {
   const finalScore = Math.max(45, Math.min(100, alignPct - penalty));
   const grade = finalScore >= 94 ? 'A+' : finalScore >= 86 ? 'A' : finalScore >= 75 ? 'B' : 'C';
   analytics.trackClear(bay, finalScore, stars, clearTimeSec);
+  if (typeof recordLeaderboardEntry === 'function') {
+    recordLeaderboardEntry(bay, finalScore, stars, grade, clearTimeSec);
+  }
+  if (examState.active && typeof advanceLicenseExam === 'function') {
+    advanceLicenseExam(bay, finalScore, clearTimeSec);
+  }
 
   document.getElementById('shPageIdx').textContent = bay.id;
   document.getElementById('shPageTotal').textContent = String(BAYS.length).padStart(2, '0');
@@ -1483,6 +1598,10 @@ function buildDemoTrajectory(bay) {
 }
 
 function startAutoDemo() {
+  if (examState.active) {
+    setCoachCue('⚠ Auto-Demo is disabled during License Exam!', 'warn');
+    return;
+  }
   if (autoDemo) {
     stopAutoDemo('Demo paused — you have manual control.');
     return;
@@ -1546,6 +1665,25 @@ function updatePhysics(dt) {
   if (bayCleared || document.querySelector('dialog[open]')) return;
 
   const bay = BAYS[currentBayIdx];
+  const nowSec = performance.now() / 1000;
+
+  // Step moving lane traffic & crossing pedestrians
+  for (const obs of bay.obstacles) {
+    if (!obs.patrolDx && !obs.patrolDy) continue;
+    const distToCar = Math.hypot(CAR.x - obs.x, CAR.y - obs.y);
+    if (distToCar < 62) continue; // Yield cleanly when player is close
+    obs.patrolClock = (obs.patrolClock || 0) + dt;
+    const ph = obs.patrolClock * (obs.patrolSpeed || 0.8) + (obs.patrolPhase || 0);
+    const prevOx = obs.x;
+    const prevOy = obs.y;
+    obs.x = (obs.baseX ?? obs.x) + Math.sin(ph) * (obs.patrolDx || 0);
+    obs.y = (obs.baseY ?? obs.y) + Math.sin(ph) * (obs.patrolDy || 0);
+    const dvx = obs.x - prevOx;
+    const dvy = obs.y - prevOy;
+    if (Math.hypot(dvx, dvy) > 0.02) {
+      obs.angle = Math.atan2(dvy, dvx);
+    }
+  }
 
   if (isReplaying) {
     stepReplay(dt, bay);
@@ -1598,14 +1736,16 @@ function updatePhysics(dt) {
     }
     syncStickVisual();
 
-    // Throttle & Brake (respects P / R / D gear selector + keyboard W/S)
-    const accel = 260;
-    const drag = 190;
+    // Throttle & Brake (wet asphalt adjusts stopping distance & high-speed grip)
+    const isRain = weatherMode === 'rain';
+    const accel = isRain ? 230 : 260;
+    const drag = isRain ? 130 : 190;
+    const brakeDecel = isRain ? 305 : 460;
     const wantFwd = keys.up || (keys.gas && activeGear === 'D');
     const wantRev = keys.down || (keys.gas && activeGear === 'R');
     if (keys.brake) {
       if (Math.abs(CAR.speed) < 18) CAR.speed = 0;
-      else CAR.speed -= Math.sign(CAR.speed) * 460 * dt;
+      else CAR.speed -= Math.sign(CAR.speed) * brakeDecel * dt;
     } else if (keys.gas && activeGear === 'P') {
       CAR.speed = 0;
       setCoachCue('Car is in PARK (P) — tap D or R to drive.', 'neutral');
@@ -1634,8 +1774,9 @@ function updatePhysics(dt) {
   const prevY = CAR.y;
   const prevAngle = CAR.angle;
 
-  // Ackermann bicycle kinematics (pivot around rear axle)
-  const angularVel = (CAR.speed / CAR.wheelbase) * Math.tan(CAR.steer);
+  // Ackermann bicycle kinematics (wet asphalt induces slight fast understeer)
+  const wetGrip = weatherMode === 'rain' && Math.abs(CAR.speed) > 90 ? 0.85 : 1.0;
+  const angularVel = (CAR.speed / CAR.wheelbase) * Math.tan(CAR.steer * wetGrip);
   CAR.angle += angularVel * dt;
   CAR.x += Math.cos(CAR.angle) * CAR.speed * dt;
   CAR.y += Math.sin(CAR.angle) * CAR.speed * dt;
@@ -1657,8 +1798,16 @@ function updatePhysics(dt) {
       lastCollisionBump = nowPerf;
       sfx.playBump();
       haptic([28, 18, 28]);
-      const obsName = hitObs?.type === 'wall' ? 'Wall' : hitObs?.type === 'curb' ? 'Curb' : hitObs?.type === 'pillar' ? 'Pillar' : hitObs?.type === 'cone' ? 'Cone' : 'Parked car';
+      const obsName = hitObs?.type === 'wall' ? 'Wall' : hitObs?.type === 'curb' ? 'Curb' : hitObs?.type === 'pillar' ? 'Pillar' : hitObs?.type === 'cone' ? 'Cone' : hitObs?.type === 'pedestrian' ? 'Pedestrian' : 'Parked car';
       analytics.trackCollision(bay, obsName);
+      if (examState.active) {
+        examState.bumps++;
+        updateExamHudBanner();
+        if (examState.bumps > examState.maxBumps) {
+          quitLicenseExam('Exam ended: Exceeded 3 collisions. Retry License Exam whenever ready!');
+          return;
+        }
+      }
       driveMistakes.push({
         t: relT,
         x: CAR.x,
@@ -1890,9 +2039,9 @@ function disposeObject3D(root) {
   });
 }
 
-function build3DCarMesh({ length = 92, width = 44, bodyColor = '#c4161f', isPlayer = false } = {}) {
+function build3DCarMesh({ length = 92, width = 44, bodyColor = '#c4161f', shape = 'sedan', isPlayer = false } = {}) {
   const g = new THREE.Group();
-  const h = isPlayer ? 22 : 23;
+  const h = shape === 'van' ? 34 : shape === 'suv' ? 27 : isPlayer ? 22 : 23;
 
   const paintMat = new THREE.MeshStandardMaterial({
     color: bodyColor,
@@ -1911,15 +2060,19 @@ function build3DCarMesh({ length = 92, width = 44, bodyColor = '#c4161f', isPlay
   chassis.receiveShadow = true;
   g.add(chassis);
 
-  // Sculpted cabin roof
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(length * 0.5, h * 0.48, width - 8), paintMat);
-  cabin.position.set(-length * 0.04, h * 0.84, 0);
+  // Sculpted cabin roof adjusted per vehicle class
+  const cabinLen = shape === 'van' ? length * 0.82 : shape === 'suv' ? length * 0.66 : shape === 'compact' ? length * 0.62 : length * 0.5;
+  const cabinOffset = shape === 'van' ? -length * 0.08 : shape === 'suv' ? -length * 0.1 : -length * 0.04;
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(cabinLen, h * 0.48, width - 8), paintMat);
+  cabin.position.set(cabinOffset, h * 0.84, 0);
   cabin.castShadow = true;
   g.add(cabin);
 
   // Tinted glasshouse
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(length * 0.47, h * 0.36, width - 6.5), glassMat);
-  glass.position.set(-length * 0.035, h * 0.84, 0);
+  const glassLen = shape === 'van' ? length * 0.24 : cabinLen * 0.92;
+  const glassOffset = shape === 'van' ? length * 0.22 : cabinOffset;
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(glassLen, h * 0.36, width - 6.5), glassMat);
+  glass.position.set(glassOffset, h * 0.84, 0);
   g.add(glass);
 
   // Front grille + Rear diffuser
@@ -2006,8 +2159,50 @@ function build3DCarMesh({ length = 92, width = 44, bodyColor = '#c4161f', isPlay
   return g;
 }
 
-const playerCarMesh = build3DCarMesh({ length: CAR.length, width: CAR.width, bodyColor: '#cc1622', isPlayer: true });
+let playerCarMesh = build3DCarMesh({
+  length: CAR.length,
+  width: CAR.width,
+  bodyColor: CAR.bodyColor,
+  shape: CAR.shape,
+  isPlayer: true
+});
 scene.add(playerCarMesh);
+
+function rebuildPlayerVehicleMesh() {
+  if (playerCarMesh) {
+    scene.remove(playerCarMesh);
+    disposeObject3D(playerCarMesh);
+  }
+  playerCarMesh = build3DCarMesh({
+    length: CAR.length,
+    width: CAR.width,
+    bodyColor: CAR.bodyColor,
+    shape: CAR.shape,
+    isPlayer: true
+  });
+  scene.add(playerCarMesh);
+  syncThreeAmbience(document.body.classList.contains('amb-on'));
+}
+
+// 3D Falling Rain Particle System (Activated in Rain/Wet Mode)
+const RAIN_COUNT = 850;
+const rainPositions = new Float32Array(RAIN_COUNT * 3);
+for (let i = 0; i < RAIN_COUNT; i++) {
+  rainPositions[i * 3] = (Math.random() - 0.5) * 1160;
+  rainPositions[i * 3 + 1] = Math.random() * 280 + 10;
+  rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 820;
+}
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+const rainPoints = new THREE.Points(
+  rainGeo,
+  new THREE.PointsMaterial({ color: '#bae6fd', size: 2.2, transparent: true, opacity: 0.65 })
+);
+rainPoints.visible = false;
+scene.add(rainPoints);
+
+// Live Rear Backup Camera PIP Camera
+const reverseCamera = new THREE.PerspectiveCamera(68, 1.6, 2, 1600);
 
 const stageEnvGroup = new THREE.Group();
 const guidesGroup = new THREE.Group();
@@ -2023,7 +2218,21 @@ function createStageObstacle3D(obs) {
   root.rotation.y = -(obs.angle || 0);
   const flashMats = [];
 
-  if (obs.type === 'cone') {
+  if (obs.type === 'pedestrian') {
+    const vestMat = new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.5 });
+    const legMat = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.8 });
+    const headMat = new THREE.MeshStandardMaterial({ color: '#fcd34d', roughness: 0.6 });
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 5.8, 14, 14), vestMat);
+    torso.position.y = 17;
+    torso.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(4.2, 14, 14), headMat);
+    head.position.y = 28;
+    head.castShadow = true;
+    const legs = new THREE.Mesh(new THREE.CylinderGeometry(4.4, 4.4, 11, 12), legMat);
+    legs.position.y = 5.5;
+    root.add(legs, torso, head);
+    flashMats.push(vestMat);
+  } else if (obs.type === 'cone') {
     const r = obs.r || 10;
     const baseMat = new THREE.MeshStandardMaterial({ color: '#1b1b1d', roughness: 0.9 });
     const coneMat = new THREE.MeshStandardMaterial({ color: '#ff6d3b', roughness: 0.45 });
@@ -2437,6 +2646,60 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
+function renderReverseCameraPIP(bay) {
+  const hudEl = document.getElementById('reverseCamHud');
+  const slotEl = document.getElementById('reverseCamSlot');
+  if (!hudEl || !slotEl) return;
+
+  const isRevActive = (activeGear === 'R' || CAR.speed < -3) && !isReplaying && !bayCleared;
+  hudEl.classList.toggle('is-active', isRevActive);
+  hudEl.setAttribute('aria-hidden', String(!isRevActive));
+  if (!isRevActive) return;
+
+  const liveClearance = getCarClearance(CAR.x, CAR.y, CAR.angle, bay).dist;
+  const info = getProximityLightInfo(liveClearance);
+  const badgeEl = document.getElementById('revCamDistBadge');
+  if (badgeEl) {
+    badgeEl.textContent = liveClearance === Infinity ? 'CLEAR' : `${Math.max(0, Math.round(liveClearance * 4.5))} CM`;
+    badgeEl.style.color = info.hex;
+  }
+  const guideL = document.getElementById('revCamGuideL');
+  const guideR = document.getElementById('revCamGuideR');
+  if (guideL) guideL.setAttribute('stroke', info.hex);
+  if (guideR) guideR.setAttribute('stroke', info.hex);
+
+  const rect = slotEl.getBoundingClientRect();
+  if (rect.width < 10 || rect.height < 10) return;
+
+  const cos = Math.cos(CAR.angle);
+  const sin = Math.sin(CAR.angle);
+  const bumperX = CAR.x - cos * (CAR.length * 0.48);
+  const bumperZ = CAR.y - sin * (CAR.length * 0.48);
+  reverseCamera.position.set(bumperX, 18, bumperZ);
+  reverseCamera.lookAt(
+    CAR.x - cos * 190 - Math.sin(CAR.steer) * 28,
+    5,
+    CAR.y - sin * 190 + Math.cos(CAR.steer) * 28
+  );
+  reverseCamera.aspect = rect.width / rect.height;
+  reverseCamera.updateProjectionMatrix();
+
+  const dpr = renderer.getPixelRatio();
+  const x = Math.round(rect.left);
+  const yBottom = Math.round(window.innerHeight - rect.bottom);
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+
+  renderer.setScissorTest(true);
+  renderer.setViewport(x, yBottom, w, h);
+  renderer.setScissor(x, yBottom, w, h);
+  renderer.clearDepth();
+  renderer.render(scene, reverseCamera);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+  void dpr;
+}
+
 function drawScene() {
   const bay = BAYS[currentBayIdx];
   const camMode = document.body.dataset.cam || 'follow';
@@ -2454,14 +2717,35 @@ function drawScene() {
     playerCarMesh.userData.tailMat.emissiveIntensity = keys.brake || isReversing ? 2.4 : 0.9;
   }
 
-  // Highlight collided obstacle briefly in crimson glow
+  // Sync moving obstacles & highlight collided obstacle briefly in crimson glow
   const nowMs = performance.now();
   for (const entry of stageObsEntries) {
+    if (entry.obs.patrolDx || entry.obs.patrolDy) {
+      entry.root.position.set(entry.obs.x, 0, entry.obs.y);
+      entry.root.rotation.y = -(entry.obs.angle || 0);
+    }
     const isHit = entry.obs === hitObsRef && nowMs < hitObsUntil;
     entry.flashMats.forEach((m) => {
       m.emissive.setHex(isHit ? 0xff2222 : 0x000000);
       m.emissiveIntensity = isHit ? 0.65 : 0;
     });
+  }
+
+  // Animate 3D rain streaks when Rain/Wet weather is enabled
+  if (weatherMode === 'rain') {
+    rainPoints.visible = true;
+    const pos = rainPoints.geometry.attributes.position.array;
+    for (let i = 0; i < RAIN_COUNT; i++) {
+      pos[i * 3 + 1] -= 5.8;
+      pos[i * 3] -= 0.7;
+      if (pos[i * 3 + 1] < 2) {
+        pos[i * 3 + 1] = 280;
+        pos[i * 3] = (Math.random() - 0.5) * 1160;
+      }
+    }
+    rainPoints.geometry.attributes.position.needsUpdate = true;
+  } else {
+    rainPoints.visible = false;
   }
 
   // Live Target Bay & Proximity 3D Guides
@@ -2486,7 +2770,9 @@ function drawScene() {
   prevCamCarY = CAR.y;
 
   orbitControls.update();
+  renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
   renderer.render(scene, camera);
+  renderReverseCameraPIP(bay);
 }
 
 // ==========================================================================
@@ -3832,6 +4118,375 @@ if (!('closedBy' in HTMLDialogElement.prototype)) {
     });
   });
 }
+
+// ==========================================================================
+// 11. GARAGE VEHICLES, WEATHER (RAIN), LEADERBOARD & 5-STAGE LICENSE EXAM
+// ==========================================================================
+const LEADERBOARD_STORAGE_KEY = 'theparktask_leaderboard_v1';
+let activeLbTab = 'stage';
+
+function applyVehicleProfile(vehId) {
+  const prof = VEHICLE_PROFILES[vehId] || VEHICLE_PROFILES.sedan;
+  CAR.vehicleId = prof.id;
+  CAR.vehicleName = prof.name;
+  CAR.shape = prof.shape;
+  CAR.length = prof.length;
+  CAR.width = prof.width;
+  CAR.wheelbase = prof.wheelbase;
+  CAR.maxSteer = prof.maxSteer;
+  CAR.maxFwd = prof.maxFwd;
+  CAR.maxRev = prof.maxRev;
+  CAR.bodyColor = prof.bodyColor;
+  localStorage.setItem(VEHICLE_STORAGE_KEY, prof.id);
+  const labelEl = document.getElementById('vehicleLabel');
+  if (labelEl) labelEl.textContent = `🚗 ${prof.short}`;
+  rebuildPlayerVehicleMesh();
+}
+
+function renderGarageCards() {
+  const grid = document.getElementById('garageGrid');
+  if (!grid) return;
+  grid.innerHTML = Object.values(VEHICLE_PROFILES)
+    .map((v) => {
+      const isAct = CAR.vehicleId === v.id;
+      return `
+        <button type="button" class="garage-card${isAct ? ' active' : ''}" data-veh-id="${v.id}">
+          <div class="garage-card-head">
+            <span>${v.name}</span>
+            <span>${isAct ? '✓ EQUIPPED' : 'SELECT'}</span>
+          </div>
+          <p>${v.desc}</p>
+          <div class="garage-specs">
+            <span>LEN ${v.length}px</span>
+            <span>WID ${v.width}px</span>
+            <span>WHEELBASE ${v.wheelbase}px</span>
+            <span>TURN ${(v.maxSteer * 57.3).toFixed(0)}°</span>
+          </div>
+        </button>
+      `;
+    })
+    .join('');
+
+  grid.querySelectorAll('[data-veh-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      applyVehicleProfile(btn.dataset.vehId);
+      renderGarageCards();
+      document.getElementById('garageModal')?.close();
+      loadBay(currentBayIdx);
+      setCoachCue(`Equipped ${CAR.vehicleName}! Wheelbase ${CAR.wheelbase}px active.`, 'ok');
+    });
+  });
+}
+
+document.getElementById('vehicleBtn')?.addEventListener('click', renderGarageCards);
+document.getElementById('menuGarageBtn')?.addEventListener('click', () => {
+  document.body.classList.remove('menu-open');
+  renderGarageCards();
+});
+
+function toggleWeatherMode() {
+  weatherMode = weatherMode === 'dry' ? 'rain' : 'dry';
+  const isRain = weatherMode === 'rain';
+  const btn = document.getElementById('weatherBtn');
+  if (btn) {
+    btn.dataset.weather = weatherMode;
+    btn.classList.toggle('rain-on', isRain);
+    btn.setAttribute('aria-pressed', String(isRain));
+  }
+  asphaltMesh.material.roughness = isRain ? 0.24 : 0.9;
+  asphaltMesh.material.metalness = isRain ? 0.26 : 0.05;
+  asphaltMesh.material.needsUpdate = true;
+  sunLight.intensity = document.body.classList.contains('amb-on') ? 0.55 : isRain ? 1.35 : 2.05;
+  setCoachCue(
+    isRain
+      ? '🌧 RAIN & WET ASPHALT ACTIVE: Longer braking distance & high-speed cornering slide!'
+      : '☀ DRY ASPHALT: Full tire grip restored.',
+    'neutral'
+  );
+}
+
+document.getElementById('weatherBtn')?.addEventListener('click', toggleWeatherMode);
+document.getElementById('menuWeatherBtn')?.addEventListener('click', () => {
+  document.body.classList.remove('menu-open');
+  toggleWeatherMode();
+});
+
+// Leaderboard Storage + Seed Benchmarks + Cloud Firestore Sync
+function getSeedLeaderboard() {
+  return [
+    { stageId: '001', uid: 'seed-1', name: 'Capt. Tonna', vehicleName: 'Sports Sedan', score: 99, stars: 3, grade: 'A+', timeSec: 8.4, reversals: 1, collisions: 0 },
+    { stageId: '001', uid: 'seed-2', name: 'Maya Chen', vehicleName: 'Compact Hatch', score: 96, stars: 3, grade: 'A+', timeSec: 9.8, reversals: 1, collisions: 0 },
+    { stageId: '015', uid: 'seed-3', name: 'Kofi Mensah', vehicleName: 'Executive SUV', score: 94, stars: 3, grade: 'A+', timeSec: 12.1, reversals: 2, collisions: 0 },
+    { stageId: '032', uid: 'seed-4', name: 'Elena R.', vehicleName: 'Sports Sedan', score: 92, stars: 3, grade: 'A', timeSec: 14.5, reversals: 2, collisions: 0 }
+  ];
+}
+
+function loadLeaderboardList() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LEADERBOARD_STORAGE_KEY) || 'null');
+    if (Array.isArray(raw) && raw.length) return raw;
+  } catch {}
+  return getSeedLeaderboard();
+}
+
+function recordLeaderboardEntry(bay, score, stars, grade, timeSec) {
+  const user = getCurrentUser();
+  const driverName = user ? user.name : getGuestNickname();
+  const uid = user ? user.uid : analytics.visitorId;
+  const entry = {
+    stageId: bay.id,
+    uid,
+    name: driverName,
+    vehicleName: CAR.vehicleName,
+    score,
+    stars,
+    grade,
+    timeSec,
+    reversals,
+    collisions,
+    clearedCount: clearedBays.size,
+    updatedAtMs: Date.now()
+  };
+
+  const list = loadLeaderboardList();
+  const idx = list.findIndex((r) => r.stageId === entry.stageId && r.uid === entry.uid);
+  if (idx >= 0) {
+    if (entry.score > list[idx].score || (entry.score === list[idx].score && entry.timeSec < list[idx].timeSec)) {
+      list[idx] = entry;
+    }
+  } else {
+    list.push(entry);
+  }
+  localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(list));
+
+  if (fbCloud?.db) {
+    const docId = `${entry.stageId}_${String(entry.uid).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    fbCloud.fsMod
+      .setDoc(fbCloud.fsMod.doc(fbCloud.db, 'leaderboard', docId), entry)
+      .catch(() => {});
+  }
+}
+
+async function renderLeaderboardTable() {
+  const headEl = document.getElementById('lbHead');
+  const bodyEl = document.getElementById('lbBody');
+  const subEl = document.getElementById('lbSubText');
+  if (!headEl || !bodyEl) return;
+
+  let entries = loadLeaderboardList();
+  if (fbCloud?.db) {
+    try {
+      const snap = await fbCloud.fsMod.getDocs(fbCloud.fsMod.collection(fbCloud.db, 'leaderboard'));
+      const cloudRows = [];
+      snap.forEach((d) => cloudRows.push(d.data()));
+      if (cloudRows.length) {
+        entries = cloudRows;
+        localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries));
+      }
+    } catch {}
+  }
+
+  const bay = BAYS[currentBayIdx];
+  const meUid = getCurrentUser()?.uid || analytics.visitorId;
+
+  if (activeLbTab === 'stage') {
+    if (subEl) subEl.textContent = `Fastest clean runs on Stage ${bay.id} (${bay.name} ${bay.surname}).`;
+    const rows = entries
+      .filter((e) => e.stageId === bay.id)
+      .sort((a, b) => b.score - a.score || a.timeSec - b.timeSec)
+      .slice(0, 20);
+    headEl.innerHTML = '<tr><th>#</th><th>DRIVER</th><th>VEHICLE</th><th>SCORE</th><th>TIME</th><th>BUMPS</th></tr>';
+    bodyEl.innerHTML = rows.length
+      ? rows
+          .map(
+            (r, i) => `
+          <tr class="${r.uid === meUid ? 'is-me' : ''}">
+            <td>#${i + 1}</td>
+            <td>${escapeHtml(r.name)}</td>
+            <td>${escapeHtml(r.vehicleName || 'Sedan')}</td>
+            <td style="color:var(--gold-bright)">${r.score}% (${'★'.repeat(r.stars || 3)})</td>
+            <td>${r.timeSec}s</td>
+            <td>${r.collisions ?? 0}</td>
+          </tr>`
+          )
+          .join('')
+      : '<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:18px">No runs recorded for this bay yet — park cleanly and press [P]!</td></tr>';
+  } else {
+    if (subEl) subEl.textContent = 'Top drivers ranked by cumulative clean stage precision & total stars.';
+    const byDriver = new Map();
+    for (const r of entries) {
+      const key = r.uid || r.name;
+      if (!byDriver.has(key)) {
+        byDriver.set(key, { uid: r.uid, name: r.name, stars: 0, stages: new Set(), scoreSum: 0, count: 0 });
+      }
+      const agg = byDriver.get(key);
+      agg.stars += r.stars || 0;
+      agg.stages.add(r.stageId);
+      agg.scoreSum += r.score || 0;
+      agg.count++;
+    }
+    const ranked = [...byDriver.values()].sort((a, b) => b.stars - a.stars || b.scoreSum - a.scoreSum).slice(0, 20);
+    headEl.innerHTML = '<tr><th>#</th><th>DRIVER</th><th>BAYS</th><th>TOTAL STARS</th><th>AVG SCORE</th></tr>';
+    bodyEl.innerHTML = ranked
+      .map(
+        (r, i) => `
+      <tr class="${r.uid === meUid ? 'is-me' : ''}">
+        <td>#${i + 1}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${r.stages.size}</td>
+        <td style="color:var(--gold-bright)">★ ${r.stars}</td>
+        <td>${Math.round(r.scoreSum / Math.max(1, r.count))}%</td>
+      </tr>`
+      )
+      .join('');
+  }
+}
+
+document.getElementById('leaderboardBtn')?.addEventListener('click', renderLeaderboardTable);
+document.getElementById('menuLeaderboardBtn')?.addEventListener('click', () => {
+  document.body.classList.remove('menu-open');
+  renderLeaderboardTable();
+});
+document.getElementById('lbTabStage')?.addEventListener('click', () => {
+  activeLbTab = 'stage';
+  document.getElementById('lbTabStage')?.classList.add('on');
+  document.getElementById('lbTabOverall')?.classList.remove('on');
+  renderLeaderboardTable();
+});
+document.getElementById('lbTabOverall')?.addEventListener('click', () => {
+  activeLbTab = 'overall';
+  document.getElementById('lbTabOverall')?.classList.add('on');
+  document.getElementById('lbTabStage')?.classList.remove('on');
+  renderLeaderboardTable();
+});
+
+// 5-Stage License Exam + Digital Certificate Export
+function updateExamHudBanner() {
+  const sEl = document.getElementById('examStageText');
+  const bEl = document.getElementById('examBumpsText');
+  const tEl = document.getElementById('examTimeText');
+  if (sEl) sEl.textContent = `🪪 EXAM ${examState.stepIdx + 1}/${examState.stageIds.length}`;
+  if (bEl) bEl.textContent = `BUMPS: ${examState.bumps}/${examState.maxBumps}`;
+  if (tEl) tEl.textContent = `${((performance.now() - examState.startMs) / 1000).toFixed(1)}s`;
+}
+
+function quitLicenseExam(msg = 'License Exam exited.') {
+  examState.active = false;
+  if (examState.timerInterval) {
+    clearInterval(examState.timerInterval);
+    examState.timerInterval = null;
+  }
+  document.body.classList.remove('is-exam');
+  if (msg) setCoachCue(msg, 'neutral');
+}
+
+function startLicenseExam() {
+  document.body.classList.remove('menu-open');
+  examState.active = true;
+  examState.stepIdx = 0;
+  examState.bumps = 0;
+  examState.scores = [];
+  examState.startMs = performance.now();
+  document.body.classList.add('is-exam');
+  if (examState.timerInterval) clearInterval(examState.timerInterval);
+  examState.timerInterval = setInterval(updateExamHudBanner, 250);
+  updateExamHudBanner();
+
+  const firstIdx = Math.max(0, BAYS.findIndex((b) => b.id === examState.stageIds[0]));
+  loadBay(firstIdx);
+  setCoachCue('🪪 LICENSE EXAM 1/5 STARTED: Zero Auto-Demo allowed. Park cleanly & click [P]!', 'ok');
+}
+
+function finishLicenseExam() {
+  const totalSec = ((performance.now() - examState.startMs) / 1000).toFixed(1);
+  const avgScore = Math.round(examState.scores.reduce((a, b) => a + b, 0) / Math.max(1, examState.scores.length));
+  const tier = avgScore >= 94 && examState.bumps === 0 ? 'DIAMOND PRO' : avgScore >= 86 ? 'GOLD MASTER' : 'SILVER CERTIFIED';
+  const grade = avgScore >= 95 ? 'S' : avgScore >= 90 ? 'A+' : avgScore >= 82 ? 'A' : 'B';
+  const driverName = getCurrentUser()?.name || getGuestNickname();
+  const certId = `TONNA-2026-${String(Math.floor(1000 + Math.random() * 8999))}`;
+
+  quitLicenseExam(`🏆 LICENSE EXAM PASSED (${grade} · ${avgScore}%)!`);
+  document.body.classList.remove('is-detail');
+
+  document.getElementById('licDriverName').textContent = driverName;
+  document.getElementById('licTierBadge').textContent = tier;
+  document.getElementById('licGrade').textContent = grade;
+  document.getElementById('licScore').textContent = `${avgScore}%`;
+  document.getElementById('licTime').textContent = `${totalSec}s`;
+  document.getElementById('licVehicle').textContent = CAR.vehicleName.toUpperCase();
+  document.getElementById('licIdText').textContent = `CERT ID: ${certId}`;
+  document.getElementById('licenseModal')?.showModal();
+}
+
+function advanceLicenseExam(bay, score) {
+  examState.scores.push(score);
+  examState.stepIdx++;
+  if (examState.stepIdx >= examState.stageIds.length) {
+    setTimeout(finishLicenseExam, 650);
+    return;
+  }
+  updateExamHudBanner();
+  const nextId = examState.stageIds[examState.stepIdx];
+  const nextIdx = Math.max(0, BAYS.findIndex((b) => b.id === nextId));
+  setTimeout(() => {
+    if (!examState.active) return;
+    loadBay(nextIdx);
+    setCoachCue(`🪪 EXAM STAGE ${examState.stepIdx + 1}/${examState.stageIds.length}: Keep Bumps under 3!`, 'ok');
+  }, 1100);
+}
+
+document.getElementById('examBtn')?.addEventListener('click', startLicenseExam);
+document.getElementById('menuExamBtn')?.addEventListener('click', startLicenseExam);
+document.getElementById('examQuitBtn')?.addEventListener('click', () => quitLicenseExam('License Exam cancelled.'));
+document.getElementById('licRestartExamBtn')?.addEventListener('click', () => {
+  document.getElementById('licenseModal')?.close();
+  startLicenseExam();
+});
+
+document.getElementById('licDownloadBtn')?.addEventListener('click', () => {
+  const c = document.createElement('canvas');
+  c.width = 960;
+  c.height = 540;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 960, 540);
+  grad.addColorStop(0, '#1f1410');
+  grad.addColorStop(1, '#0c090b');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 960, 540);
+  g.strokeStyle = '#ffc570';
+  g.lineWidth = 6;
+  g.strokeRect(20, 20, 920, 500);
+  g.fillStyle = '#ffc570';
+  g.font = 'bold 24px monospace';
+  g.fillText('THEPARKTASK · TONNA PRECISION PARKING LICENSE', 56, 82);
+  g.fillStyle = '#ffffff';
+  g.font = 'bold 48px sans-serif';
+  g.fillText(document.getElementById('licDriverName').textContent, 56, 170);
+  g.fillStyle = '#4ade80';
+  g.font = 'bold 28px monospace';
+  g.fillText(`TIER: ${document.getElementById('licTierBadge').textContent}   GRADE: ${document.getElementById('licGrade').textContent}`, 56, 250);
+  g.fillStyle = '#e2e8f0';
+  g.font = '24px monospace';
+  g.fillText(`ACCURACY: ${document.getElementById('licScore').textContent}   TIME: ${document.getElementById('licTime').textContent}   CAR: ${document.getElementById('licVehicle').textContent}`, 56, 330);
+  g.fillStyle = '#94a3b8';
+  g.font = '18px monospace';
+  g.fillText(document.getElementById('licIdText').textContent, 56, 460);
+
+  const a = document.createElement('a');
+  a.download = `tonna-parking-license-${Date.now()}.png`;
+  a.href = c.toDataURL('image/png');
+  a.click();
+});
+
+document.getElementById('licCopyBtn')?.addEventListener('click', () => {
+  const txt = `🏆 I passed TheParkTask 5-Stage Parking License Exam! Grade: ${document.getElementById('licGrade').textContent} (${document.getElementById('licScore').textContent}) in ${document.getElementById('licVehicle').textContent} (${document.getElementById('licTime').textContent})`;
+  navigator.clipboard?.writeText(txt).catch(() => {});
+  setCoachCue('✓ License score copied to clipboard!', 'ok');
+});
+
+// Sync equipped vehicle label cleanly on startup
+const initLbl = document.getElementById('vehicleLabel');
+if (initLbl) initLbl.textContent = `🚗 ${initialVeh.short}`;
 
 // Main Animation Loop
 function loop(now) {

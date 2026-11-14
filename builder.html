@@ -120,8 +120,8 @@
     /* Compact Small Icon Tiles Grid (Always clickable; clicking expands details!) */
     .bs-icon-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 5px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
     }
 
     .bs-icon-btn {
@@ -398,7 +398,7 @@
       }
 
       .builder-sidebar.is-minimized .bs-icon-grid {
-        grid-template-columns: repeat(8, minmax(38px, 1fr));
+        grid-template-columns: repeat(10, minmax(36px, 1fr));
         overflow-x: auto;
         scrollbar-width: none;
       }
@@ -458,6 +458,10 @@
         <button type="button" id="btnModeBuild" class="mode-pill-btn on">🛠 BUILD</button>
         <button type="button" id="btnModeDrive" class="mode-pill-btn drive-active">🚗 DRIVE</button>
       </div>
+
+      <button type="button" id="builderVehicleBtn" class="gl-btn" title="Switch Vehicle Class (Compact, Sedan, SUV, Van)">
+        <span id="builderVehicleLabel">🚗 SEDAN</span>
+      </button>
 
       <a href="./index.html" class="gl-btn" title="Return to 108-Stage 3D Academy">
         <span>← 108 STAGES</span>
@@ -555,6 +559,14 @@
         <span class="bs-ico">🔺</span>
         <span class="bs-lbl">CONE</span>
       </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="traffic" title="Add Moving Lane Traffic Car">
+        <span class="bs-ico">🚕</span>
+        <span class="bs-lbl">TRAFFIC</span>
+      </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="walker" title="Add Crossing Pedestrian">
+        <span class="bs-ico">🚶</span>
+        <span class="bs-lbl">WALKER</span>
+      </button>
     </div>
 
     <!-- Expandable Inspector & Templates Body -->
@@ -624,7 +636,8 @@
           <option value="custom_saved">★ My Saved Custom Lot</option>
         </select>
         <div class="bs-chip-row">
-          <button type="button" class="bs-mini-btn" id="saveCustomLotBtn">💾 SAVE LOT</button>
+          <button type="button" class="bs-mini-btn" id="saveCustomLotBtn">💾 SAVE</button>
+          <button type="button" class="bs-mini-btn" id="shareCustomLotBtn">🔗 SHARE LINK</button>
           <button type="button" class="bs-mini-btn danger" id="clearObstaclesBtn">✕ CLEAR</button>
         </div>
         <button type="button" class="btn-gold" id="startDriveCtaBtn" style="height:36px;width:100%;margin-top:2px">
@@ -683,6 +696,23 @@
     </div>
   </aside>
 
+  <!-- Live 3D Reverse Backup Camera Picture-in-Picture HUD -->
+  <div id="reverseCamHud" class="reverse-cam-hud glass-panel" aria-hidden="true">
+    <div class="rev-cam-header">
+      <span class="rev-cam-rec">REAR CAM · 3D</span>
+      <span id="revCamDistBadge" style="color:#4ade80">CLEAR</span>
+    </div>
+    <div id="reverseCamSlot" class="rev-cam-slot">
+      <svg viewBox="0 0 160 100" class="rev-cam-overlay" aria-hidden="true">
+        <path id="revCamGuideL" d="M 28 96 L 52 34" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="6 4" fill="none" />
+        <path id="revCamGuideR" d="M 132 96 L 108 34" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="6 4" fill="none" />
+        <line x1="56" y1="78" x2="104" y2="78" stroke="#ef4444" stroke-width="2" opacity="0.85" />
+        <line x1="53" y1="56" x2="107" y2="56" stroke="#f97316" stroke-width="1.6" opacity="0.7" />
+        <line x1="50" y1="36" x2="110" y2="36" stroke="#22c55e" stroke-width="1.4" opacity="0.55" />
+      </svg>
+    </div>
+  </div>
+
   <!-- 5. BOTTOM PERIMETER HUD: UTILITIES, TELEMETRY & STEERING / PEDAL CLUSTER -->
   <div class="hud-bottom-left">
     <button type="button" id="sound2" class="rn-round" aria-label="Toggle engine & radar sound" aria-pressed="true" title="Engine & Proximity Radar Audio">
@@ -700,6 +730,14 @@
         <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
         <line x1="1" y1="12" x2="3" y2="12"></line>
         <line x1="21" y1="12" x2="23" y2="12"></line>
+      </svg>
+    </button>
+    <button type="button" id="weatherBtn" class="rn-round" data-weather="dry" aria-label="Toggle Dry or Rain Wet Asphalt" aria-pressed="false" title="Toggle Rain &amp; Wet Asphalt Physics">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path>
+        <line x1="8" y1="19" x2="8" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="22"></line>
+        <line x1="16" y1="19" x2="16" y2="21"></line>
       </svg>
     </button>
     <button type="button" id="demoBtn" class="rn-round" aria-label="Watch auto-drive demo" aria-pressed="false" title="Simulate Maneuver to Target Box (Demo)">
