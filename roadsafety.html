@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Tonna Safety — Nigerian Road Safety &amp; FRSC 3D Signs Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Geist+Mono:wght@400;500;600;700&family=Geist:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Lexend+Giga:wght@600&family=Montserrat:wght@900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    /* ======================================================================
+       ROAD SAFETY 3D EXPLORER — NIGERIAN FRSC THEME ENHANCEMENTS
+       Uses Garuda 2026 Liquid Glass & Espresso tokens from styles.css
+       ====================================================================== */
+    html,
+    body {
+      block-size: 100dvh;
+      overflow: clip;
+    }
+
+    .rs-status-pill {
+      position: fixed;
+      top: calc(74px * var(--ui, 1));
+      left: calc(20px * var(--ui, 1));
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      color: var(--ink);
+      font-family: 'Geist Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      pointer-events: auto;
+    }
+
+    .rs-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.16);
+      border: 1px solid rgba(74, 222, 128, 0.45);
+      color: #86efac;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .rs-mini-action {
+      border: 1px solid rgba(255, 197, 112, 0.45);
+      background: rgba(255, 197, 112, 0.14);
+      color: var(--gold-bright);
+      font-family: 'Geist Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 180ms var(--ease), transform 180ms var(--ease);
+    }
+
+    .rs-mini-action:hover {
+      background: rgba(255, 197, 112, 0.25);
+    }
+
+    .rs-mini-action.is-active {
+      background: linear-gradient(170deg, #ffd99a, #ffc570 50%, #e8ab36);
+      color: #1a0f0a;
+      border-color: rgba(255, 224, 170, 0.9);
+    }
+
+    /* Sign Discovery Explainer Card */
+    .sign-discovery-card {
+      position: fixed;
+      top: calc(122px * var(--ui, 1));
+      left: calc(20px * var(--ui, 1));
+      z-index: 35;
+      width: min(410px, calc(100dvw - 40px));
+      border-radius: 18px;
+      padding: 15px 16px;
+      color: var(--ink);
+      opacity: 0;
+      transform: translateY(-10px) scale(0.97);
+      pointer-events: none;
+      transition: opacity 260ms var(--ease), transform 260ms var(--ease-spring);
+    }
+
+    .sign-discovery-card.is-visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .sd-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .sd-svg-frame {
+      flex: 0 0 82px;
+      width: 82px;
+      height: 82px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 2px solid rgba(255, 255, 255, 0.55);
+      display: grid;
+      place-items: center;
+      padding: 6px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.36);
+    }
+
+    .sd-svg-frame svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .sd-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .sd-cat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .sd-cat-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .sd-cat-pill[data-cat="prohibitory"] {
+      background: rgba(239, 68, 68, 0.22);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.55);
+    }
+
+    .sd-cat-pill[data-cat="mandatory"] {
+      background: rgba(37, 99, 235, 0.25);
+      color: #93c5fd;
+      border: 1px solid rgba(96, 165, 250, 0.55);
+    }
+
+    .sd-cat-pill[data-cat="warning"] {
+      background: rgba(245, 158, 11, 0.24);
+      color: #fcd34d;
+      border: 1px solid rgba(251, 191, 36, 0.55);
+    }
+
+    .sd-cat-pill[data-cat="informative"] {
+      background: rgba(16, 185, 129, 0.24);
+      color: #6ee7b7;
+      border: 1px solid rgba(52, 211, 153, 0.55);
+    }
+
+    .sd-title {
+      margin: 0 0 3px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+    }
+
+    .sd-sub {
+      margin: 0;
+      font-family: 'Geist Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--gold-bright);
+    }
+
+    .sd-close {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      font-size: 12px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .sd-body {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(246, 250, 249, 0.24);
+      display: grid;
+      gap: 8px;
+    }
+
+    .sd-block {
+      background: rgba(10, 8, 7, 0.48);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .sd-block-k {
+      display: block;
+      font-family: 'Geist Mono', monospace;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: var(--gold-bright);
+      margin-bottom: 3px;
+      text-transform: uppercase;
+    }
+
+    .sd-block p {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.42;
+      color: rgba(246, 250, 249, 0.92);
+    }
+
+    .sd-foot {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .sd-btn {
+      flex: 1;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 7px 10px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    .sd-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    /* Scene Strip (Bottom Center 7 Nigerian Corridors) */
+    .rs-scene-strip {
+      position: fixed;
+      left: 50%;
+      bottom: calc(56px * var(--ui, 1));
+      transform: translateX(-50%);
+      z-index: 28;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 16px;
+      max-width: min(820px, calc(100dvw - 380px));
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .rs-scene-strip::-webkit-scrollbar {
+      display: none;
+    }
+
+    .rs-scene-tab {
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(246, 250, 249, 0.78);
+      border-radius: 11px;
+      padding: 6px 11px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      font-family: 'Geist', sans-serif;
+      transition: all 180ms var(--ease);
+    }
+
+    .rs-scene-tab strong {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .rs-scene-tab span {
+      font-family: 'Geist Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      color: var(--dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .rs-scene-tab.is-active {
+      background: linear-gradient(165deg, rgba(255, 197, 112, 0.28), rgba(179, 18, 29, 0.25));
+      border-color: rgba(255, 197, 112, 0.78);
+      color: var(--ink);
+      box-shadow: 0 4px 16px rgba(255, 169, 44, 0.22);
+    }
+
+    .rs-scene-tab.is-active span {
+      color: var(--gold-bright);
+    }
+
+    /* Scene Sign Checkpoints Quick Bar above Strip */
+    .rs-sign-chips {
+      position: fixed;
+      left: 50%;
+      bottom: calc(114px * var(--ui, 1));
+      transform: translateX(-50%);
+      z-index: 27;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      max-width: min(760px, calc(100dvw - 380px));
+      pointer-events: auto;
+    }
+
+    .rs-chip {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(14, 10, 10, 0.72);
+      backdrop-filter: blur(8px);
+      color: rgba(246, 250, 249, 0.8);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: border-color 180ms, background 180ms;
+    }
+
+    .rs-chip.is-seen {
+      border-color: rgba(74, 222, 128, 0.55);
+      color: #bbf7d0;
+    }
+
+    .rs-chip.is-near {
+      border-color: var(--gold-bright);
+      background: rgba(255, 197, 112, 0.22);
+      color: #fff;
+    }
+
+    /* Catalog & Handbook Modals */
+    .rs-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .rs-filter-btn {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+    }
+
+    .rs-filter-btn.is-active {
+      background: linear-gradient(170deg, #ffd99a, #ffc570 50%, #e8ab36);
+      color: #1a0f0a;
+      border-color: rgba(255, 224, 170, 0.9);
+    }
+
+    .rs-catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 12px;
+      max-height: 60dvh;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      overscroll-behavior: contain;
+      padding-right: 4px;
+    }
+
+    .rs-cat-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .rs-cat-card.is-seen {
+      border-color: rgba(74, 222, 128, 0.48);
+    }
+
+    .rs-cat-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .rs-cat-svg {
+      width: 56px;
+      height: 56px;
+      flex-shrink: 0;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.96);
+      padding: 5px;
+      display: grid;
+      place-items: center;
+    }
+
+    .rs-cat-svg svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .rs-cat-name {
+      margin: 2px 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .rs-cat-desc {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.4;
+      color: rgba(246, 250, 249, 0.8);
+      flex: 1;
+    }
+
+    .rs-cat-go {
+      border: 1px solid rgba(255, 197, 112, 0.45);
+      background: rgba(255, 197, 112, 0.12);
+      color: var(--gold-bright);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .rs-cat-go:hover {
+      background: rgba(255, 197, 112, 0.24);
+    }
+
+    /* Nigerian Highway Code Handbook Grid */
+    .rs-handbook-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+      max-height: 62dvh;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+      overscroll-behavior: contain;
+    }
+
+    .rs-hb-card {
+      border: 1px solid rgba(246, 250, 249, 0.24);
+      background: rgba(12, 9, 9, 0.55);
+      border-radius: 12px;
+      padding: 13px;
+    }
+
+    .rs-hb-card h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: var(--gold-bright);
+      font-family: 'Geist Mono', monospace;
+      letter-spacing: 0.06em;
+    }
+
+    .rs-hb-dl {
+      margin: 0;
+      display: grid;
+      gap: 6px;
+      font-size: 12.5px;
+    }
+
+    .rs-hb-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      border-bottom: 1px dotted rgba(246, 250, 249, 0.22);
+      padding-bottom: 4px;
+    }
+
+    .rs-hb-row span:first-child {
+      color: rgba(246, 250, 249, 0.78);
+    }
+
+    .rs-hb-row strong {
+      color: #fff;
+      font-family: 'Geist Mono', monospace;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    /* Quiz Modal */
+    .rs-quiz-box {
+      display: grid;
+      gap: 14px;
+    }
+
+    .rs-quiz-prompt {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .rs-quiz-svg {
+      width: 92px;
+      height: 92px;
+      flex-shrink: 0;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.96);
+      padding: 8px;
+      display: grid;
+      place-items: center;
+    }
+
+    .rs-quiz-svg svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .rs-quiz-opts {
+      display: grid;
+      gap: 8px;
+    }
+
+    .rs-quiz-opt {
+      text-align: left;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 150ms, border-color 150ms;
+    }
+
+    .rs-quiz-opt:hover:not(:disabled) {
+      background: rgba(255, 197, 112, 0.14);
+      border-color: rgba(255, 197, 112, 0.55);
+    }
+
+    .rs-quiz-opt.is-correct {
+      background: rgba(34, 197, 94, 0.25);
+      border-color: #4ade80;
+      color: #dcfce7;
+    }
+
+    .rs-quiz-opt.is-wrong {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: #f87171;
+      color: #fee2e2;
+    }
+
+    @media (max-width: 760px) {
+      .rs-status-pill {
+        top: 66px;
+        left: 10px;
+        right: 54px;
+        padding: 6px 10px;
+        font-size: 10px;
+        justify-content: space-between;
+      }
+
+      .sign-discovery-card {
+        top: 108px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        padding: 10px 12px;
+        max-height: 40dvh;
+        overflow-y: auto;
+      }
+
+      .sd-svg-frame {
+        flex: 0 0 60px;
+        width: 60px;
+        height: 60px;
+      }
+
+      .sd-title {
+        font-size: 15px;
+      }
+
+      .rs-sign-chips {
+        display: none;
+      }
+
+      .rs-scene-strip {
+        left: 10px;
+        right: 10px;
+        transform: none;
+        max-width: none;
+        bottom: 168px;
+        padding: 4px;
+      }
+
+      .rs-scene-tab {
+        padding: 5px 9px;
+      }
+
+      .drive-pad {
+        bottom: 36px;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      .garuda-modal {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: linear-gradient(165deg, rgba(42, 18, 16, 0.97), rgba(12, 9, 9, 0.99));
+      }
+    }
+  </style>
+</head>
+<body data-glass="liquid" data-cam="follow" class="in-place">
+
+  <!-- ====================================================================
+       1. FULL-VIEWPORT 3D NIGERIAN ROADWAY & SIGNS EXPLORER (#app)
+       ==================================================================== -->
+  <main id="app" aria-label="Nigerian Road Safety 3D Training Corridor">
+    <canvas id="safetyCanvas"></canvas>
+  </main>
+
+  <!-- ====================================================================
+       2. TOP PERIMETER HUD HEADER (header.top)
+       ==================================================================== -->
+  <header class="top">
+    <a class="logo" href="#reset" id="resetSceneLink" title="Reset vehicle to start of current road scene (R)">
+      <span class="logo-shield" aria-hidden="true">FR</span>
+      <span>TONNA SAFETY</span>
+      <small>NIGERIA HIGHWAY CODE</small>
+    </a>
+
+    <div class="brand">
+      <p class="brand-kicker" id="hudSceneKicker">SCENE 01 · URBAN INTERSECTION &amp; STOP CONTROL</p>
+      <div class="champs" aria-label="ROAD SAFETY">
+        <span class="ch-gold" aria-hidden="true">ROAD SAFETY</span>
+        <span class="ch-face">ROAD SAFETY</span>
+      </div>
+    </div>
+
+    <div class="nav right">
+      <button type="button" id="openCatalogBtn" class="gl-btn" commandfor="catalogModal" command="show-modal" title="Browse All 34 Nigerian FRSC Road Signs">
+        <span>📚 SIGNS <b id="discoveredCount" class="nav-pill-count">0/34</b></span>
+      </button>
+
+      <button type="button" id="openGuideBtn" class="gl-btn" commandfor="guideModal" command="show-modal" title="Nigerian Road Laws, Speed Limits &amp; Vehicle Papers">
+        <span>🛡 FRSC CODE</span>
+      </button>
+
+      <button type="button" id="openQuizBtn" class="gl-btn" title="Take Interactive Nigerian Road Signs Quiz">
+        <span>🧠 QUIZ</span>
+      </button>
+
+      <a href="./index.html" class="gl-btn" title="Return to 108-Stage 3D Parking Academy">
+        <span>← ACADEMY</span>
+      </a>
+
+      <a href="./builder.html" class="gl-btn" title="Open Custom 3D Lot Builder">
+        <span>🛠 BUILDER</span>
+      </a>
+
+      <div id="views" class="rn-seg wl-views" role="group" aria-label="3D Camera mode">
+        <i class="rn-thumb" id="viewThumb"></i>
+        <button type="button" class="rn-opt on" data-cam="follow">3D CHASE</button>
+        <button type="button" class="rn-opt" data-cam="wide">WIDE 3D</button>
+        <button type="button" class="rn-opt" data-cam="driver">CABIN VIEW</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Sign Discovery & Auto-Cruise Progress Pill -->
+  <div id="safetyStatusPill" class="rs-status-pill glass-panel" role="status" aria-live="polite">
+    <span class="rs-status-badge" id="sceneProgressBadge">SCENE 0/5</span>
+    <span id="nextSignHint">Drive ahead to spot signs</span>
+    <button type="button" id="autoCruiseBtn" class="rs-mini-action" aria-pressed="false" title="Auto-drive along the road from sign to sign">
+      ▶ TOUR
+    </button>
+  </div>
+
+  <!-- Live Floating Sign Explainer Card (Opens automatically as car nears any 3D road sign!) -->
+  <aside id="signDiscoveryCard" class="sign-discovery-card espresso-card" aria-label="Detected Road Sign Explanation" aria-live="polite">
+    <div class="sd-head">
+      <div class="sd-svg-frame" id="sdSvgFrame" aria-hidden="true"></div>
+      <div class="sd-meta">
+        <div class="sd-cat-row">
+          <span class="sd-cat-pill" id="sdCategoryPill" data-cat="prohibitory">PROHIBITORY</span>
+          <button type="button" id="sdCloseBtn" class="sd-close" aria-label="Close sign explanation">✕</button>
+        </div>
+        <h2 class="sd-title" id="sdTitle">STOP SIGN</h2>
+        <p class="sd-sub" id="sdSub">FRSC REGULATORY · COMPLETE HALT</p>
+      </div>
+    </div>
+    <div class="sd-body">
+      <div class="sd-block">
+        <span class="sd-block-k">What This Sign Is For</span>
+        <p id="sdMeaning">Orders every approaching vehicle to come to a full standstill before the painted white STOP line.</p>
+      </div>
+      <div class="sd-block">
+        <span class="sd-block-k">Nigerian Road Rule &amp; Action</span>
+        <p id="sdAction">Stop completely, check left and right for fast-moving danfo/okada and express traffic, and move only when clear.</p>
+      </div>
+    </div>
+    <div class="sd-foot">
+      <button type="button" id="sdPrevBtn" class="sd-btn">← PREV SIGN</button>
+      <button type="button" id="sdNextBtn" class="sd-btn">DRIVE TO NEXT →</button>
+    </div>
+  </aside>
+
+  <!-- Right Vertical HUD Controls (Weather / Tour / Reset) -->
+  <div class="right-nav-controls" aria-label="Environment Controls">
+    <button type="button" id="weatherBtn" class="rn-round" data-weather="dry" aria-label="Toggle Dry, Wet Rain, or Harmattan Haze" title="Switch Road Weather (Dry / Wet Rain / Harmattan Dust)">
+      <span id="weatherGlyph" aria-hidden="true" style="font-size:15px">☀</span>
+    </button>
+    <button type="button" id="resetCarBtn" class="rn-round" aria-label="Reset vehicle position" title="Reset Vehicle to Scene Start (R)">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"></polyline>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Quick Scene Sign Checkpoints -->
+  <div id="sceneSignChips" class="rs-sign-chips" aria-label="Signs in current scene"></div>
+
+  <!-- 7-Scene Nigerian Road Corridors Segmented Strip -->
+  <nav id="sceneStrip" class="rs-scene-strip glass-panel" aria-label="Nigerian Road Scenarios"></nav>
+
+  <!-- Bottom-Right Touch / Mouse Steering Wheel & Pedal Cluster -->
+  <div id="drivePad" class="drive-pad glass-panel" aria-label="On-screen driving controls">
+    <div class="pad-steer">
+      <div id="steerWheel" class="steer-wheel" role="slider" aria-label="Steering wheel" aria-valuemin="-36" aria-valuemax="36" aria-valuenow="0" tabindex="0">
+        <div id="steerWheelRotor" class="steer-rotor">
+          <svg viewBox="0 0 120 120" class="wheel-svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="rimGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#3a3d45"/>
+                <stop offset="50%" stop-color="#191b20"/>
+                <stop offset="100%" stop-color="#2c2f36"/>
+              </linearGradient>
+              <linearGradient id="spokeGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#5a5f6b"/>
+                <stop offset="100%" stop-color="#23262d"/>
+              </linearGradient>
+            </defs>
+            <circle cx="60" cy="60" r="49" fill="none" stroke="url(#rimGrad)" stroke-width="13"/>
+            <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
+            <circle cx="60" cy="60" r="42.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+            <rect x="56.5" y="4.5" width="7" height="13" rx="2" fill="#ffc570"/>
+            <path d="M16 55 L42 56 L42 66 L16 65 Z" fill="url(#spokeGrad)" stroke="rgba(255,255,255,0.16)" stroke-width="0.8"/>
+            <path d="M104 55 L78 56 L78 66 L104 65 Z" fill="url(#spokeGrad)" stroke="rgba(255,255,255,0.16)" stroke-width="0.8"/>
+            <path d="M53 76 L67 76 L64 104 L56 104 Z" fill="url(#spokeGrad)" stroke="rgba(255,255,255,0.16)" stroke-width="0.8"/>
+            <circle cx="60" cy="60" r="20" fill="#17181d" stroke="rgba(255,197,112,0.7)" stroke-width="1.6"/>
+            <circle cx="60" cy="60" r="16.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+            <path d="M49 52 L60 47 L71 52 L69 65 L60 72 L51 65 Z" fill="rgba(162, 16, 36, 0.88)" stroke="#ffc570" stroke-width="1.2"/>
+            <text x="60" y="64" text-anchor="middle" fill="#ffe1a8" font-family="Geist Mono, monospace" font-weight="800" font-size="13">FR</text>
+          </svg>
+        </div>
+        <span id="stickReadout" class="wheel-deg-badge">0°</span>
+      </div>
+    </div>
+    <div class="pad-shifter" role="radiogroup" aria-label="Gear selector">
+      <button type="button" class="gear-btn" id="gearP" data-gear="P" role="radio" aria-checked="false" aria-label="Park">P</button>
+      <button type="button" class="gear-btn" id="gearR" data-gear="R" role="radio" aria-checked="false" aria-label="Reverse">R</button>
+      <button type="button" class="gear-btn on" id="gearD" data-gear="D" role="radio" aria-checked="true" aria-label="Drive">D</button>
+    </div>
+    <div class="pad-pedals" role="group" aria-label="Brake and Gas pedals">
+      <button type="button" class="pad-btn pedal-pad pad-rev" id="btnBrake" aria-label="Brake">
+        <span class="pedal-tread" aria-hidden="true"></span>
+        <span class="pedal-label">BRK</span>
+        <span class="pedal-sub">BRAKE</span>
+      </button>
+      <button type="button" class="pad-btn pedal-pad pad-gas" id="btnGas" aria-label="Gas">
+        <span class="pedal-tread" aria-hidden="true"></span>
+        <span class="pedal-label">GAS</span>
+        <span class="pedal-sub">ACCEL</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Crimson Broadcast Ticker -->
+  <footer class="marquee" aria-label="Nigerian Road Safety Tips">
+    <div class="track">
+      <span>NIGERIAN HIGHWAY CODE · FRSC ROAD SAFETY <em>— Drive Toward Every Signpost to Inspect It in 3D —</em> OBEY 50 KM/H IN BUILT-UP AREAS · 100 KM/H MAX ON EXPRESSWAYS · WEAR SEATBELTS · CALL FRSC TOLL-FREE 122 FOR EMERGENCIES · DON'T DRINK &amp; DRIVE ·</span>
+      <span aria-hidden="true">NIGERIAN HIGHWAY CODE · FRSC ROAD SAFETY <em>— Drive Toward Every Signpost to Inspect It in 3D —</em> OBEY 50 KM/H IN BUILT-UP AREAS · 100 KM/H MAX ON EXPRESSWAYS · WEAR SEATBELTS · CALL FRSC TOLL-FREE 122 FOR EMERGENCIES · DON'T DRINK &amp; DRIVE ·</span>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       3. MODALS: FULL SIGNS ENCYCLOPEDIA, NIGERIAN HIGHWAY CODE & QUIZ
+       ==================================================================== -->
+  <dialog id="catalogModal" class="garuda-modal" closedby="any" aria-labelledby="catalogModalTitle">
+    <div class="gm-box gm-wide espresso-card">
+      <div class="gm-head">
+        <div>
+          <p class="gm-k">NIGERIA HIGHWAY CODE · COMPLETE REFERENCE</p>
+          <h2 id="catalogModalTitle">All 34 Nigerian Road Safety Signs</h2>
+        </div>
+        <button type="button" class="rn-round sm-close" commandfor="catalogModal" command="close" aria-label="Close signs catalog">✕</button>
+      </div>
+      <div class="rs-filter-bar" id="catalogFilterBar" role="group" aria-label="Filter signs by category">
+        <button type="button" class="rs-filter-btn is-active" data-filter="all">ALL (34)</button>
+        <button type="button" class="rs-filter-btn" data-filter="prohibitory">PROHIBITORY (MUST NOT)</button>
+        <button type="button" class="rs-filter-btn" data-filter="mandatory">MANDATORY (MUST DO)</button>
+        <button type="button" class="rs-filter-btn" data-filter="warning">WARNING (HAZARD)</button>
+        <button type="button" class="rs-filter-btn" data-filter="informative">INFORMATIVE &amp; FRSC</button>
+      </div>
+      <div id="catalogGrid" class="rs-catalog-grid"></div>
+    </div>
+  </dialog>
+
+  <dialog id="guideModal" class="garuda-modal" closedby="any" aria-labelledby="guideModalTitle">
+    <div class="gm-box gm-wide espresso-card">
+      <div class="gm-head">
+        <div>
+          <p class="gm-k">FEDERAL ROAD SAFETY CORPS (FRSC) ESSENTIALS</p>
+          <h2 id="guideModalTitle">Nigerian Roads &amp; Driver Law Dossier</h2>
+        </div>
+        <button type="button" class="rn-round sm-close" commandfor="guideModal" command="close" aria-label="Close highway code dossier">✕</button>
+      </div>
+      <div class="rs-handbook-grid">
+        <section class="rs-hb-card">
+          <h3>01 · NIGERIAN SPEED LIMITS (KM/H)</h3>
+          <div class="rs-hb-dl">
+            <div class="rs-hb-row"><span>Built-up / Urban &amp; School Zones</span><strong>50 km/h MAX</strong></div>
+            <div class="rs-hb-row"><span>Single-Carriage Trunk Highways (Private Cars)</span><strong>80 km/h MAX</strong></div>
+            <div class="rs-hb-row"><span>Dual Expressways (Private Cars)</span><strong>100 km/h MAX</strong></div>
+            <div class="rs-hb-row"><span>Commercial Buses &amp; Taxis (Expressway)</span><strong>90 km/h MAX</strong></div>
+            <div class="rs-hb-row"><span>Tankers, Trailers &amp; Articulated Trucks</span><strong>50–60 km/h MAX</strong></div>
+          </div>
+        </section>
+
+        <section class="rs-hb-card">
+          <h3>02 · MANDATORY VEHICLE DOCUMENTS &amp; KIT</h3>
+          <div class="rs-hb-dl">
+            <div class="rs-hb-row"><span>Valid National Driver's Licence</span><strong>FRSC REQUIRED</strong></div>
+            <div class="rs-hb-row"><span>Current Vehicle Licence &amp; Plate</span><strong>ANNUAL RENEWAL</strong></div>
+            <div class="rs-hb-row"><span>Roadworthiness Certificate</span><strong>VIO / LACVIS</strong></div>
+            <div class="rs-hb-row"><span>Motor Insurance Certificate (Min. 3rd Party)</span><strong>NIID VERIFIED</strong></div>
+            <div class="rs-hb-row"><span>2× C-Caution Triangles + Fire Extinguisher</span><strong>IN BOOT ALWAYS</strong></div>
+          </div>
+        </section>
+
+        <section class="rs-hb-card">
+          <h3>03 · RIGHT-HAND TRAFFIC &amp; JUNCTIONS</h3>
+          <div class="rs-hb-dl">
+            <div class="rs-hb-row"><span>Lane Discipline</span><strong>DRIVE ON THE RIGHT</strong></div>
+            <div class="rs-hb-row"><span>Overtaking Side</span><strong>PASS ON THE LEFT ONLY</strong></div>
+            <div class="rs-hb-row"><span>Roundabouts</span><strong>MOVE ANTI-CLOCKWISE</strong></div>
+            <div class="rs-hb-row"><span>Yield Priority at Roundabout</span><strong>YIELD TO VEHICLES ALREADY IN CIRCLE</strong></div>
+            <div class="rs-hb-row"><span>Headlamp Dip &amp; Wipers</span><strong>MANDATORY IN RAIN &amp; HARMATTAN</strong></div>
+          </div>
+        </section>
+
+        <section class="rs-hb-card">
+          <h3>04 · NIGERIAN ROAD HAZARDS &amp; HELP</h3>
+          <div class="rs-hb-dl">
+            <div class="rs-hb-row"><span>FRSC Emergency Toll-Free Call</span><strong>DIAL 122</strong></div>
+            <div class="rs-hb-row"><span>Flash Floods &amp; Deep Potholes</span><strong>SLOW DOWN · CHECK DEPTH</strong></div>
+            <div class="rs-hb-row"><span>Harmattan Dust Haze (Nov–Feb)</span><strong>LOW BEAM + DOUBLE GAP</strong></div>
+            <div class="rs-hb-row"><span>Boda/Tricycle (Keke) &amp; Commercial Stops</span><strong>CHECK BLIND SPOTS</strong></div>
+            <div class="rs-hb-row"><span>Broken-Down Vehicle</span><strong>PLACE C-CAUTION 45m BEHIND</strong></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="quizModal" class="garuda-modal" closedby="any" aria-labelledby="quizModalTitle">
+    <div class="gm-box espresso-card">
+      <div class="gm-head">
+        <div>
+          <p class="gm-k" id="quizProgressKicker">NIGERIAN HIGHWAY CODE TEST · Q 1 / 10</p>
+          <h2 id="quizModalTitle">Identify This Nigerian Road Sign</h2>
+        </div>
+        <button type="button" class="rn-round sm-close" commandfor="quizModal" command="close" aria-label="Close quiz">✕</button>
+      </div>
+      <div class="rs-quiz-box">
+        <div class="rs-quiz-prompt">
+          <div class="rs-quiz-svg" id="quizSvgFrame" aria-hidden="true"></div>
+          <div>
+            <p style="margin:0 0 4px;font-family:'Geist Mono',monospace;font-size:10px;color:var(--gold-bright)" id="quizCatLabel">CATEGORY HINT</p>
+            <p style="margin:0;font-size:13.5px;line-height:1.4" id="quizQuestionText">You see this sign while driving in Nigeria. What does it mean?</p>
+          </div>
+        </div>
+        <div class="rs-quiz-opts" id="quizOptionsContainer"></div>
+        <p id="quizFeedbackText" style="margin:0;min-height:20px;font-family:'Geist Mono',monospace;font-size:11.5px;color:#86efac"></p>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span id="quizScoreLabel" style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--gold-bright)">SCORE: 0 / 0</span>
+          <button type="button" id="quizNextBtn" class="btn-gold">NEXT QUESTION →</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./roadsafety.js"></script>
+</body>
+</html>
