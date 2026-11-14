@@ -836,6 +836,7 @@ scene.add(scenePropsGroup, sceneSignsGroup);
 
 let activeSceneSigns = []; // [{ placement, signDef, group, haloMat, beaconMesh }]
 let animatedWalkers = []; // Pedestrians / Cattle in current scene
+let currentExitX = 470;
 
 function clearGroup(grp) {
   while (grp.children.length) grp.remove(grp.children[0]);
@@ -1050,27 +1051,90 @@ function buildNigerianSceneProps(envType) {
   }
 }
 
-function loadRoadScene(idx) {
+function buildExitPortalGantry(exitX, nextScene) {
+  const portal = new THREE.Group();
+  portal.position.set(exitX, 0, 0);
+
+  const postMat = new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.75, roughness: 0.28 });
+  [-74, 74].forEach((zPos) => {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.8, 92, 10), postMat);
+    leg.position.set(0, 46, zPos);
+    leg.castShadow = true;
+    portal.add(leg);
+  });
+
+  // Highway Gantry Banner Canvas Texture ("NEXT STAGE -> ...")
+  const cvs = document.createElement('canvas');
+  cvs.width = 512;
+  cvs.height = 96;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#14532d';
+  ctx.fillRect(0, 0, 512, 96);
+  ctx.strokeStyle = '#ffc570';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(5, 5, 502, 86);
+  ctx.fillStyle = '#ffc570';
+  ctx.font = 'bold 24px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`NEXT STAGE → ${nextScene.id} · ${nextScene.name.toUpperCase()}`, 256, 44);
+  ctx.fillStyle = '#dcfce7';
+  ctx.font = 'bold 20px Arial, sans-serif';
+  ctx.fillText('KEEP DRIVING FORWARD TO ENTER', 256, 74);
+
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(5, 28, 152),
+    [
+      new THREE.MeshStandardMaterial({ color: '#14532d' }),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35 }),
+      new THREE.MeshStandardMaterial({ color: '#14532d' }),
+      new THREE.MeshStandardMaterial({ color: '#14532d' }),
+      new THREE.MeshStandardMaterial({ color: '#14532d' }),
+      new THREE.MeshStandardMaterial({ color: '#14532d' })
+    ]
+  );
+  board.position.set(0, 82, 0);
+  board.castShadow = true;
+
+  // Glowing Emerald Threshold Strip across the asphalt
+  const strip = new THREE.Mesh(
+    new THREE.PlaneGeometry(14, 138),
+    new THREE.MeshBasicMaterial({ color: '#4ade80', transparent: true, opacity: 0.52, side: THREE.DoubleSide })
+  );
+  strip.rotation.x = -Math.PI / 2;
+  strip.position.set(0, 0.45, 0);
+
+  portal.add(board, strip);
+  scenePropsGroup.add(portal);
+}
+
+function loadRoadScene(idx, entrySpeed = 0) {
   currentSceneIdx = (idx + SCENES.length) % SCENES.length;
   const sc = SCENES[currentSceneIdx];
+  const nextSc = SCENES[(currentSceneIdx + 1) % SCENES.length];
+
+  const maxSignX = Math.max(...sc.signs.map((s) => s.x));
+  currentExitX = Math.min(495, maxSignX + 48);
 
   document.getElementById('hudSceneKicker').textContent = sc.kicker;
 
   clearGroup(sceneSignsGroup);
   activeSceneSigns = sc.signs.map((pl) => build3DRoadSignPost(pl));
   buildNigerianSceneProps(sc.envType);
+  buildExitPortalGantry(currentExitX, nextSc);
 
-  resetCarToSceneStart();
+  resetCarToSceneStart(entrySpeed);
   renderSceneTabs();
   renderSceneSignChips();
   updateDiscoveryProgressHUD();
 }
 
-function resetCarToSceneStart() {
+function resetCarToSceneStart(entrySpeed = 0) {
   CAR.x = -425;
   CAR.y = 28;
   CAR.angle = 0;
-  CAR.speed = 0;
+  CAR.speed = entrySpeed;
   CAR.steer = 0;
   activeGear = 'D';
   cruisePauseTimer = 0;
@@ -1565,9 +1629,13 @@ function updatePhysics(dt) {
       cruisePauseTimer -= dt;
       CAR.speed = 0;
     } else {
+      const lastSceneSign = activeSceneSigns[activeSceneSigns.length - 1];
       const targetSign =
-        activeSceneSigns.find((o) => o.signDef.id !== cruiseLastStoppedSign && o.placement.x >= CAR.x - 10) ||
-        activeSceneSigns[0];
+        lastSceneSign && cruiseLastStoppedSign === lastSceneSign.signDef.id
+          ? null
+          : activeSceneSigns.find((o) => o.signDef.id !== cruiseLastStoppedSign && o.placement.x >= CAR.x - 10) ||
+            lastSceneSign;
+
       if (targetSign) {
         const dx = targetSign.placement.x - 42 - CAR.x;
         const dz = targetSign.triggerZ - CAR.y;
@@ -1578,18 +1646,20 @@ function updatePhysics(dt) {
           cruiseLastStoppedSign = targetSign.signDef.id;
           markSignDiscovered(targetSign);
           showSignCard(targetSign.signDef);
-          // If reached last sign, advance smoothly to next scene next cycle
-          if (targetSign === activeSceneSigns[activeSceneSigns.length - 1]) {
-            setTimeout(() => {
-              if (autoCruise) loadRoadScene(currentSceneIdx + 1);
-            }, 2600);
-          }
         } else {
           const desiredAngle = Math.atan2(dz, dx);
           const angErr = Math.atan2(Math.sin(desiredAngle - CAR.angle), Math.cos(desiredAngle - CAR.angle));
           CAR.steer = Math.max(-CAR.maxSteer, Math.min(CAR.maxSteer, angErr * 1.8));
           CAR.speed = Math.min(115, CAR.speed + 200 * dt);
         }
+      } else {
+        // After inspecting the final sign, cruise straight into the Next Stage portal
+        const dx = currentExitX + 25 - CAR.x;
+        const dz = 28 - CAR.y;
+        const desiredAngle = Math.atan2(dz, dx);
+        const angErr = Math.atan2(Math.sin(desiredAngle - CAR.angle), Math.cos(desiredAngle - CAR.angle));
+        CAR.steer = Math.max(-CAR.maxSteer, Math.min(CAR.maxSteer, angErr * 1.8));
+        CAR.speed = Math.min(115, CAR.speed + 200 * dt);
       }
     }
   } else {
@@ -1633,8 +1703,16 @@ function updatePhysics(dt) {
   CAR.x += Math.cos(CAR.angle) * CAR.speed * dt;
   CAR.y += Math.sin(CAR.angle) * CAR.speed * dt;
 
-  CAR.x = Math.max(-530, Math.min(520, CAR.x));
+  CAR.x = Math.max(-530, Math.min(540, CAR.x));
   CAR.y = Math.max(-52, Math.min(52, CAR.y));
+
+  // Entering the Next Stage portal at the end of a corridor immediately advances!
+  if (CAR.x >= currentExitX && (CAR.speed > 2 || keys.up || (keys.gas && activeGear === 'D') || autoCruise)) {
+    const carry = Math.max(45, Math.min(90, CAR.speed * 0.75));
+    sfx.playDiscover();
+    loadRoadScene(currentSceneIdx + 1, carry);
+    return;
+  }
 
   // Proximity Detection to Every 3D Signpost
   let nearestObj = null;
@@ -1667,7 +1745,8 @@ function updatePhysics(dt) {
     if (nextAhead) {
       hintEl.textContent = `AHEAD: ${nextAhead.signDef.title.split('(')[0].trim()} · ${Math.max(1, Math.round(nextAheadDist * 0.35))}m`;
     } else {
-      hintEl.textContent = '✓ All signs spotted in this scene — pick another road below!';
+      const nextSc = SCENES[(currentSceneIdx + 1) % SCENES.length];
+      hintEl.textContent = `Keep driving past the gate → to enter Stage ${nextSc.id}: ${nextSc.name}`;
     }
   }
 }
