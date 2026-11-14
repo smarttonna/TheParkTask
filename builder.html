@@ -17,24 +17,26 @@
     }
   </script>
   <style>
-    /* Builder-Specific HUD & Sidebar Layout */
+    /* Builder-Specific Compact & Minimizable Dock Layout */
     .builder-sidebar {
       position: fixed;
       top: calc(92px * var(--ui));
-      left: calc(24px * var(--ui));
-      bottom: calc(64px * var(--ui));
-      width: min(350px, calc(100vw - 32px));
+      left: calc(20px * var(--ui));
+      max-height: calc(100dvh - 160px);
+      width: min(312px, calc(100% - 28px));
       z-index: 6;
-      border-radius: 22px;
-      padding: 16px;
+      border-radius: 18px;
+      padding: 10px 11px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      background: linear-gradient(165deg, rgba(24, 18, 20, 0.92), rgba(12, 10, 12, 0.95));
+      gap: 8px;
+      background: linear-gradient(165deg, rgba(22, 16, 18, 0.92), rgba(11, 9, 11, 0.95));
       border: 1px solid rgba(255, 255, 255, 0.22);
-      box-shadow: 0 22px 54px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.22);
       overflow-y: auto;
-      transition: transform 0.35s var(--ease), opacity 0.28s var(--ease);
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      transition: transform 0.3s var(--ease), opacity 0.25s var(--ease), max-height 0.25s var(--ease);
     }
 
     body.mode-drive .builder-sidebar {
@@ -48,20 +50,159 @@
       opacity: 0.35;
     }
 
-    .bs-sec {
-      padding: 11px 12px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.045);
-      border: 1px solid rgba(255, 255, 255, 0.11);
+    .bs-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .bs-title-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font: 700 10px/1 "Geist Mono", monospace;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--gold-bright);
+    }
+
+    .bs-count-badge {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--ink);
+      font: 700 9px/1 "Geist Mono", monospace;
+    }
+
+    .bs-top-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .bs-min-btn {
+      height: 26px;
+      padding: 0 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ink);
+      font: 700 9px/1 "Geist Mono", monospace;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .bs-min-btn:hover {
+      border-color: var(--gold-bright);
+      color: var(--gold-bright);
+    }
+
+    .bs-quick-drive {
+      display: none;
+      height: 26px;
+      padding: 0 9px;
+      border-radius: 999px;
+      border: 0;
+      background: linear-gradient(135deg, #4ade80, #16a34a);
+      color: #04180b;
+      font: 800 9px/1 "Geist Mono", monospace;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    /* Compact Small Icon Tiles Grid (Always clickable; clicking expands details!) */
+    .bs-icon-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+    }
+
+    .bs-icon-btn {
+      min-height: 44px;
+      padding: 5px 3px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .bs-icon-btn .bs-ico {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .bs-icon-btn .bs-lbl {
+      font: 700 8px/1 "Geist Mono", monospace;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(246, 250, 249, 0.85);
+    }
+
+    .bs-icon-btn:hover {
+      border-color: var(--gold-bright);
+      background: rgba(255, 197, 112, 0.18);
+      transform: translateY(-1px);
+    }
+
+    .bs-icon-btn.active {
+      border-color: #4ade80;
+      background: rgba(74, 222, 128, 0.22);
+      box-shadow: 0 0 12px rgba(74, 222, 128, 0.28);
+    }
+
+    .bs-icon-btn.active .bs-lbl {
+      color: #86efac;
+    }
+
+    /* Expandable Body (Hidden smoothly when minimized!) */
+    .bs-expand-body {
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
 
+    .builder-sidebar.is-minimized {
+      overflow: hidden;
+      padding: 8px 10px;
+      gap: 6px;
+    }
+
+    .builder-sidebar.is-minimized .bs-topbar {
+      padding-bottom: 4px;
+    }
+
+    .builder-sidebar.is-minimized .bs-expand-body {
+      display: none;
+    }
+
+    .bs-sec {
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
     .bs-kicker {
       margin: 0;
-      font: 700 9.5px/1.1 "Geist Mono", monospace;
-      letter-spacing: 0.16em;
+      font: 700 9px/1.1 "Geist Mono", monospace;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--gold-bright);
       display: flex;
@@ -69,60 +210,12 @@
       justify-content: space-between;
     }
 
-    .bs-desc {
-      margin: 0;
-      font: 400 11.5px/1.4 "Geist", sans-serif;
-      color: var(--dim);
-    }
-
-    .bs-grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 7px;
-    }
-
-    .bs-grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-
-    .bs-tool-btn {
-      min-height: 40px;
-      padding: 7px 9px;
-      border-radius: 11px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      background: linear-gradient(160deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03));
-      color: var(--ink);
-      font: 600 10.5px/1.2 "Geist Mono", monospace;
-      letter-spacing: 0.04em;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      cursor: pointer;
-      text-align: left;
-      transition: all 0.16s ease;
-    }
-
-    .bs-tool-btn:hover {
-      border-color: var(--gold-bright);
-      background: rgba(255, 197, 112, 0.16);
-      transform: translateY(-1px);
-    }
-
-    .bs-tool-btn.active {
-      border-color: #4ade80;
-      background: rgba(74, 222, 128, 0.2);
-      color: #86efac;
-      box-shadow: 0 0 14px rgba(74, 222, 128, 0.28);
-    }
-
     .bs-prop-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      font: 600 10px/1.2 "Geist Mono", monospace;
+      font: 600 9.5px/1.2 "Geist Mono", monospace;
       color: var(--dim);
     }
 
@@ -133,7 +226,7 @@
     }
 
     .bs-prop-val {
-      min-width: 44px;
+      min-width: 40px;
       text-align: right;
       color: var(--ink);
       font-variant-numeric: tabular-nums;
@@ -142,18 +235,18 @@
     .bs-chip-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 4px;
     }
 
     .bs-mini-btn {
       flex: 1;
-      min-width: 44px;
-      height: 28px;
-      border-radius: 8px;
+      min-width: 40px;
+      height: 26px;
+      border-radius: 7px;
       border: 1px solid rgba(255, 255, 255, 0.16);
       background: rgba(255, 255, 255, 0.06);
       color: var(--ink);
-      font: 600 9.5px/1 "Geist Mono", monospace;
+      font: 600 9px/1 "Geist Mono", monospace;
       cursor: pointer;
     }
 
@@ -180,8 +273,8 @@
     }
 
     .bs-swatch {
-      width: 22px;
-      height: 22px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
       border: 2px solid rgba(255, 255, 255, 0.25);
       cursor: pointer;
@@ -196,18 +289,19 @@
 
     .bs-select {
       width: 100%;
-      height: 36px;
-      border-radius: 10px;
-      padding: 0 10px;
+      height: 32px;
+      border-radius: 8px;
+      padding: 0 8px;
       background: rgba(0, 0, 0, 0.45);
       border: 1px solid rgba(255, 255, 255, 0.2);
       color: var(--ink);
-      font: 600 11px/1 "Geist Mono", monospace;
+      font: 600 10.5px/1 "Geist Mono", monospace;
     }
 
     .nav.right {
       gap: 6px;
       flex-wrap: nowrap;
+      margin-right: 0;
     }
 
     .nav.right .gl-btn,
@@ -220,16 +314,16 @@
     .mode-pill-switch {
       display: inline-flex;
       flex-shrink: 0;
-      padding: 4px;
+      padding: 3px;
       border-radius: 999px;
       background: rgba(14, 10, 11, 0.82);
       border: 1px solid rgba(255, 255, 255, 0.24);
-      gap: 4px;
+      gap: 3px;
     }
 
     .mode-pill-btn {
-      height: 36px;
-      padding: 0 12px;
+      height: 34px;
+      padding: 0 11px;
       border-radius: 999px;
       border: 0;
       background: transparent;
@@ -253,59 +347,81 @@
       box-shadow: 0 4px 16px rgba(74, 222, 128, 0.4);
     }
 
-    .prox-light-pill {
-      position: fixed;
-      top: calc(96px * var(--ui));
-      right: calc(28px * var(--ui));
-      z-index: 5;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 12px;
-      border-radius: 999px;
-      background: rgba(14, 11, 13, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      font: 700 10px/1 "Geist Mono", monospace;
-      letter-spacing: 0.1em;
-      color: #22c55e;
-      pointer-events: none;
+    /* Mobile top compact switcher when nav.right is hidden */
+    .mobile-mode-fab {
+      display: none;
     }
 
-    .prox-bulbs {
-      display: inline-flex;
-      gap: 5px;
-    }
-
-    .prox-bulb {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.16);
-      transition: all 0.15s ease;
-    }
-
-    .prox-bulb.green.lit { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-    .prox-bulb.orange.lit { background: #f97316; box-shadow: 0 0 10px #f97316; }
-    .prox-bulb.red.lit { background: #ef4444; box-shadow: 0 0 12px #ef4444; }
-
-    @media (max-width: 760px) {
-      .prox-light-pill {
-        top: calc(74px * var(--ui));
-        right: 10px;
-        padding: 5px 10px;
-        font-size: 9px;
+    @media (max-width: 760px), (max-aspect-ratio: 1 / 1) {
+      .bs-quick-drive {
+        display: inline-flex;
+        align-items: center;
       }
+
+      .mobile-mode-fab {
+        display: inline-flex;
+        position: fixed;
+        top: max(10px, env(safe-area-inset-top));
+        right: 14px;
+        z-index: 6;
+        height: 32px;
+        padding: 0 11px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 197, 112, 0.5);
+        background: rgba(22, 16, 18, 0.88);
+        color: var(--gold-bright);
+        font: 700 9.5px/1 "Geist Mono", monospace;
+        letter-spacing: 0.06em;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+      }
+
+      body.mode-drive .mobile-mode-fab {
+        border-color: rgba(74, 222, 128, 0.65);
+        color: #86efac;
+      }
+
       .builder-sidebar {
         top: auto;
         left: 10px;
         right: 10px;
-        bottom: 54px;
+        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 52px);
         width: auto;
-        max-height: 46vh;
-        padding: 12px;
+        max-height: 44dvh;
+        padding: 9px 10px;
       }
+
+      .builder-sidebar.is-minimized {
+        max-height: none;
+        padding: 7px 9px;
+      }
+
+      .builder-sidebar.is-minimized .bs-icon-grid {
+        grid-template-columns: repeat(8, minmax(38px, 1fr));
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .builder-sidebar.is-minimized .bs-icon-grid::-webkit-scrollbar {
+        display: none;
+      }
+
+      .builder-sidebar.is-minimized .bs-icon-btn {
+        min-height: 38px;
+        padding: 4px 2px;
+      }
+
+      .builder-sidebar.is-minimized .bs-icon-btn .bs-ico {
+        font-size: 14px;
+      }
+
+      .builder-sidebar.is-minimized .bs-icon-btn .bs-lbl {
+        font-size: 7px;
+      }
+
       body.mode-drive .builder-sidebar {
-        transform: translateY(120%);
+        transform: translateY(130%);
       }
     }
   </style>
@@ -322,35 +438,28 @@
 
   <!-- 2. TOP PERIMETER HUD -->
   <header class="top">
-    <div class="brand">
-      <a href="./index.html" class="mark" title="Back to 108-Stage Driving Academy">
-        <span>TONNA</span>
-        <span>BUILDER</span>
-      </a>
-      <i class="rule"></i>
-      <div class="event">
-        <span id="hudLevelKicker">3D CUSTOM LOT SANDBOX · THREE.JS</span>
-        <strong>TONNA 2026</strong>
-      </div>
-    </div>
+    <a href="./index.html" class="logo" title="Back to 108-Stage Driving Academy">
+      <span class="logo-shield" aria-hidden="true">P</span>
+      <span>TONNA BUILDER</span>
+      <small>3D SANDBOX</small>
+    </a>
 
-    <div class="champ" aria-hidden="true">
-      <div class="ch-wheel">
+    <div class="brand">
+      <p class="brand-kicker" id="hudLevelKicker">3D CUSTOM LOT · THREE.JS</p>
+      <div class="champs" aria-label="CUSTOM LOT">
+        <span class="ch-gold" aria-hidden="true">CUSTOM LOT</span>
         <span class="ch-face">CUSTOM LOT</span>
-        <span class="ch-face">MANEUVER</span>
-        <span class="ch-face">SANDBOX</span>
-        <span class="ch-face">PRECISION</span>
       </div>
     </div>
 
     <div class="nav right">
       <!-- Mode Toggle: BUILD vs DRIVE -->
       <div class="mode-pill-switch" role="group" aria-label="Builder or Drive Mode">
-        <button type="button" id="btnModeBuild" class="mode-pill-btn on">🛠 BUILD LOT</button>
-        <button type="button" id="btnModeDrive" class="mode-pill-btn drive-active">🚗 DRIVE &amp; PARK</button>
+        <button type="button" id="btnModeBuild" class="mode-pill-btn on">🛠 BUILD</button>
+        <button type="button" id="btnModeDrive" class="mode-pill-btn drive-active">🚗 DRIVE</button>
       </div>
 
-      <a href="./index.html" class="gl-btn" title="Return to 108-Stage Precision Academy">
+      <a href="./index.html" class="gl-btn" title="Return to 108-Stage 3D Academy">
         <span>← 108 STAGES</span>
       </a>
 
@@ -371,6 +480,10 @@
     </div>
   </header>
 
+  <button type="button" id="mobileModeFab" class="mobile-mode-fab" aria-label="Switch between Build and Drive modes">
+    <span id="mobileModeFabText">🚗 DRIVE</span>
+  </button>
+
   <!-- 3-Light Obstacle Proximity Traffic Indicator -->
   <div id="proxLightPill" class="prox-light-pill glass-panel" role="status" aria-live="polite">
     <span class="prox-bulbs" aria-hidden="true">
@@ -384,7 +497,7 @@
   <!-- Live Coaching Cue Pill -->
   <div id="coachCue" class="coach-cue glass-panel" role="status" aria-live="polite">
     <span class="cue-dot"></span>
-    <span id="coachCueText">3D BUILD MODE: Drag objects on the lot (drag empty asphalt to orbit 3D view, scroll to zoom) — then click [🚗 DRIVE &amp; PARK]!</span>
+    <span id="coachCueText">3D BUILD MODE: Tap an icon to add/select or drag on the 3D lot — then tap [🚗 DRIVE]!</span>
   </div>
 
   <!-- Stage Passed Celebration Sign -->
@@ -393,139 +506,131 @@
     <strong id="passSignTitle">★★★ · CUSTOM MANEUVER GRADED</strong>
   </div>
 
-  <!-- 3. LEFT BUILDER SIDEBAR (Visible in BUILD mode) -->
+  <!-- 3. COMPACT COLLAPSIBLE BUILDER DOCK (Visible in BUILD mode) -->
   <aside id="builderSidebar" class="builder-sidebar glass-panel" aria-label="Environment Builder Controls">
-    <div class="bs-sec">
-      <p class="bs-kicker">
-        <span>1. PLACE CAR &amp; TARGET PARK</span>
-        <span style="color:#86efac">DRAG ON LOT</span>
-      </p>
-      <p class="bs-desc">Select or drag where your car starts parked, and where you want to maneuver/park to:</p>
-      <div class="bs-grid-2">
-        <button type="button" class="bs-tool-btn" id="selectStartCarBtn" title="Select and position where your car starts">
-          <span>🚗</span>
-          <div>
-            <div>MY CAR START</div>
-            <small style="color:var(--dim);font-size:8.5px">Where you are parked</small>
-          </div>
-        </button>
-        <button type="button" class="bs-tool-btn" id="selectTargetBayBtn" title="Select and position where you want to park">
-          <span>🅿️</span>
-          <div>
-            <div>TARGET PARK</div>
-            <small style="color:var(--dim);font-size:8.5px">Goal parking box</small>
-          </div>
+    <div class="bs-topbar">
+      <span class="bs-title-group">
+        <span>🛠 3D OBJECTS</span>
+        <span id="obsCountLabel" class="bs-count-badge">0</span>
+      </span>
+      <div class="bs-top-actions">
+        <button type="button" class="bs-quick-drive" id="quickDriveToggleBtn">🚗 DRIVE</button>
+        <button type="button" class="bs-min-btn" id="builderMinBtn" aria-expanded="true" aria-controls="builderExpandBody" title="Minimize or Expand Builder Panel">
+          <span id="builderMinLabel">▴ MINIMIZE</span>
         </button>
       </div>
     </div>
 
-    <div class="bs-sec">
-      <p class="bs-kicker">
-        <span>2. ADD OBSTACLES TO LOT</span>
-        <span id="obsCountLabel" style="color:var(--ink)">0 ITEMS</span>
-      </p>
-      <p class="bs-desc">Click any obstacle to drop it onto the lot, then drag it into position:</p>
-      <div class="bs-grid-2">
-        <button type="button" class="bs-tool-btn" data-add-obs="sedan">
-          <span>🚙</span>
-          <span>+ PARKED SEDAN</span>
-        </button>
-        <button type="button" class="bs-tool-btn" data-add-obs="suv">
-          <span>🚐</span>
-          <span>+ PARKED SUV</span>
-        </button>
-        <button type="button" class="bs-tool-btn" data-add-obs="wall">
-          <span>🧱</span>
-          <span>+ CONCRETE WALL</span>
-        </button>
-        <button type="button" class="bs-tool-btn" data-add-obs="curb">
-          <span>⬛</span>
-          <span>+ ROAD CURB</span>
-        </button>
-        <button type="button" class="bs-tool-btn" data-add-obs="pillar">
-          <span>🏛</span>
-          <span>+ PILLAR COLUMN</span>
-        </button>
-        <button type="button" class="bs-tool-btn" data-add-obs="cone">
-          <span>🔺</span>
-          <span>+ TRAFFIC CONE</span>
-        </button>
-      </div>
+    <!-- Compact 8-Icon Object Palette (clicking an icon selects/adds & expands panel) -->
+    <div class="bs-icon-grid" role="group" aria-label="Car, Park Box, and Obstacle Icons">
+      <button type="button" class="bs-icon-btn active" id="selectStartCarBtn" title="Select and position where your car starts">
+        <span class="bs-ico">🚗</span>
+        <span class="bs-lbl">START</span>
+      </button>
+      <button type="button" class="bs-icon-btn" id="selectTargetBayBtn" title="Select and position target parking bay">
+        <span class="bs-ico">🅿️</span>
+        <span class="bs-lbl">PARK</span>
+      </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="sedan" title="Add Parked Sedan obstacle">
+        <span class="bs-ico">🚙</span>
+        <span class="bs-lbl">SEDAN</span>
+      </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="suv" title="Add Parked SUV obstacle">
+        <span class="bs-ico">🚐</span>
+        <span class="bs-lbl">SUV</span>
+      </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="wall" title="Add Concrete Wall obstacle">
+        <span class="bs-ico">🧱</span>
+        <span class="bs-lbl">WALL</span>
+      </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="curb" title="Add Road Curb obstacle">
+        <span class="bs-ico">⬛</span>
+        <span class="bs-lbl">CURB</span>
+      </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="pillar" title="Add Pillar Column obstacle">
+        <span class="bs-ico">🏛</span>
+        <span class="bs-lbl">PILLAR</span>
+      </button>
+      <button type="button" class="bs-icon-btn" data-add-obs="cone" title="Add Traffic Cone obstacle">
+        <span class="bs-ico">🔺</span>
+        <span class="bs-lbl">CONE</span>
+      </button>
     </div>
 
-    <!-- 3. SELECTED ITEM INSPECTOR -->
-    <div class="bs-sec" id="inspectorPanel">
-      <p class="bs-kicker">
-        <span>3. SELECTED ITEM INSPECTOR</span>
-        <strong id="inspSelectedName" style="color:#86efac">MY CAR START</strong>
-      </p>
+    <!-- Expandable Inspector & Templates Body -->
+    <div id="builderExpandBody" class="bs-expand-body">
+      <div class="bs-sec" id="inspectorPanel">
+        <p class="bs-kicker">
+          <span>INSPECTOR</span>
+          <strong id="inspSelectedName" style="color:#86efac">MY CAR START</strong>
+        </p>
 
-      <div class="bs-prop-row" id="inspAngleRow">
-        <label for="inspAngleSlider">ANGLE</label>
-        <input id="inspAngleSlider" type="range" min="-180" max="180" step="1" value="0" />
-        <span class="bs-prop-val" id="inspAngleVal">0°</span>
-      </div>
+        <div class="bs-prop-row" id="inspAngleRow">
+          <label for="inspAngleSlider">ANGLE</label>
+          <input id="inspAngleSlider" type="range" min="-180" max="180" step="1" value="0" />
+          <span class="bs-prop-val" id="inspAngleVal">0°</span>
+        </div>
 
-      <div class="bs-chip-row" id="inspQuickAngles">
-        <button type="button" class="bs-mini-btn" data-rot-delta="-45">-45°</button>
-        <button type="button" class="bs-mini-btn" data-rot-delta="-15">-15°</button>
-        <button type="button" class="bs-mini-btn" data-rot-abs="0">0°</button>
-        <button type="button" class="bs-mini-btn" data-rot-abs="90">90°</button>
-        <button type="button" class="bs-mini-btn" data-rot-delta="15">+15°</button>
-        <button type="button" class="bs-mini-btn" data-rot-delta="45">+45°</button>
-      </div>
+        <div class="bs-chip-row" id="inspQuickAngles">
+          <button type="button" class="bs-mini-btn" data-rot-delta="-45">-45°</button>
+          <button type="button" class="bs-mini-btn" data-rot-delta="-15">-15°</button>
+          <button type="button" class="bs-mini-btn" data-rot-abs="0">0°</button>
+          <button type="button" class="bs-mini-btn" data-rot-abs="90">90°</button>
+          <button type="button" class="bs-mini-btn" data-rot-delta="15">+15°</button>
+          <button type="button" class="bs-mini-btn" data-rot-delta="45">+45°</button>
+        </div>
 
-      <div class="bs-prop-row" id="inspWidthRow">
-        <label for="inspWidthSlider">LENGTH</label>
-        <input id="inspWidthSlider" type="range" min="24" max="420" step="2" value="90" />
-        <span class="bs-prop-val" id="inspWidthVal">90px</span>
-      </div>
+        <div class="bs-prop-row" id="inspWidthRow">
+          <label for="inspWidthSlider">LENGTH</label>
+          <input id="inspWidthSlider" type="range" min="24" max="420" step="2" value="90" />
+          <span class="bs-prop-val" id="inspWidthVal">90px</span>
+        </div>
 
-      <div class="bs-prop-row" id="inspHeightRow">
-        <label for="inspHeightSlider">WIDTH</label>
-        <input id="inspHeightSlider" type="range" min="16" max="220" step="2" value="44" />
-        <span class="bs-prop-val" id="inspHeightVal">44px</span>
-      </div>
+        <div class="bs-prop-row" id="inspHeightRow">
+          <label for="inspHeightSlider">WIDTH</label>
+          <input id="inspHeightSlider" type="range" min="16" max="220" step="2" value="44" />
+          <span class="bs-prop-val" id="inspHeightVal">44px</span>
+        </div>
 
-      <div class="bs-prop-row" id="inspColorRow">
-        <span>COLOR</span>
-        <div class="bs-swatches" id="inspSwatches">
-          <button type="button" class="bs-swatch on" data-color="#3e4a59" style="background:#3e4a59" aria-label="Slate"></button>
-          <button type="button" class="bs-swatch" data-color="#2c5282" style="background:#2c5282" aria-label="Cobalt"></button>
-          <button type="button" class="bs-swatch" data-color="#285e61" style="background:#285e61" aria-label="Teal"></button>
-          <button type="button" class="bs-swatch" data-color="#744210" style="background:#744210" aria-label="Bronze"></button>
-          <button type="button" class="bs-swatch" data-color="#702459" style="background:#702459" aria-label="Plum"></button>
-          <button type="button" class="bs-swatch" data-color="#4a5568" style="background:#4a5568" aria-label="Graphite"></button>
+        <div class="bs-prop-row" id="inspColorRow">
+          <span>COLOR</span>
+          <div class="bs-swatches" id="inspSwatches">
+            <button type="button" class="bs-swatch on" data-color="#3e4a59" style="background:#3e4a59" aria-label="Slate"></button>
+            <button type="button" class="bs-swatch" data-color="#2c5282" style="background:#2c5282" aria-label="Cobalt"></button>
+            <button type="button" class="bs-swatch" data-color="#285e61" style="background:#285e61" aria-label="Teal"></button>
+            <button type="button" class="bs-swatch" data-color="#744210" style="background:#744210" aria-label="Bronze"></button>
+            <button type="button" class="bs-swatch" data-color="#702459" style="background:#702459" aria-label="Plum"></button>
+            <button type="button" class="bs-swatch" data-color="#4a5568" style="background:#4a5568" aria-label="Graphite"></button>
+          </div>
+        </div>
+
+        <div class="bs-chip-row" id="inspActionRow">
+          <button type="button" class="bs-mini-btn" id="inspDuplicateBtn">⧉ DUPLICATE</button>
+          <button type="button" class="bs-mini-btn danger" id="inspDeleteBtn">🗑 DELETE</button>
         </div>
       </div>
 
-      <div class="bs-chip-row" id="inspActionRow">
-        <button type="button" class="bs-mini-btn" id="inspDuplicateBtn">⧉ DUPLICATE OBSTACLE</button>
-        <button type="button" class="bs-mini-btn danger" id="inspDeleteBtn">🗑 DELETE</button>
+      <div class="bs-sec">
+        <p class="bs-kicker">
+          <span>TEMPLATES &amp; SAVE</span>
+        </p>
+        <label for="presetSelect" class="visually-hidden">Load template or saved lot</label>
+        <select id="presetSelect" class="bs-select">
+          <option value="compound">Template 1: Blocked-In Compound (Maneuver Out)</option>
+          <option value="parallel_squeeze">Template 2: Tight Parallel Squeeze Exit</option>
+          <option value="pillar_maze">Template 3: Basement Pillar Maze</option>
+          <option value="angled_lot">Template 4: 45° Diagonal Shopping Mall</option>
+          <option value="blank">Template 5: Blank Lot (Build From Scratch)</option>
+          <option value="custom_saved">★ My Saved Custom Lot</option>
+        </select>
+        <div class="bs-chip-row">
+          <button type="button" class="bs-mini-btn" id="saveCustomLotBtn">💾 SAVE LOT</button>
+          <button type="button" class="bs-mini-btn danger" id="clearObstaclesBtn">✕ CLEAR</button>
+        </div>
+        <button type="button" class="btn-gold" id="startDriveCtaBtn" style="height:36px;width:100%;margin-top:2px">
+          🚗 TEST &amp; DRIVE →
+        </button>
       </div>
-    </div>
-
-    <!-- 4. TEMPLATES & SAVE / LOAD -->
-    <div class="bs-sec">
-      <p class="bs-kicker">
-        <span>4. SCENARIO TEMPLATES &amp; SAVE</span>
-      </p>
-      <label for="presetSelect" class="visually-hidden">Load template or saved lot</label>
-      <select id="presetSelect" class="bs-select">
-        <option value="compound">Template 1: Blocked-In Compound (Maneuver Out)</option>
-        <option value="parallel_squeeze">Template 2: Tight Parallel Squeeze Exit</option>
-        <option value="pillar_maze">Template 3: Basement Pillar Maze</option>
-        <option value="angled_lot">Template 4: 45° Diagonal Shopping Mall</option>
-        <option value="blank">Template 5: Blank Lot (Build From Scratch)</option>
-        <option value="custom_saved">★ My Saved Custom Lot</option>
-      </select>
-      <div class="bs-chip-row">
-        <button type="button" class="bs-mini-btn" id="saveCustomLotBtn">💾 SAVE MY LOT</button>
-        <button type="button" class="bs-mini-btn danger" id="clearObstaclesBtn">✕ CLEAR OBSTACLES</button>
-      </div>
-      <button type="button" class="btn-gold" id="startDriveCtaBtn" style="height:40px;width:100%;margin-top:2px">
-        🚗 TEST &amp; DRIVE THIS ENVIRONMENT →
-      </button>
     </div>
   </aside>
 

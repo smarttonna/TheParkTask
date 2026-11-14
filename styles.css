@@ -402,6 +402,43 @@ header.top > * {
   color: var(--ink);
 }
 
+/* Proximity 3-Light Indicator Pill (Shared: Academy + 3D Builder) */
+.prox-light-pill {
+  position: fixed;
+  top: calc(96px * var(--ui));
+  right: calc(28px * var(--ui));
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(14, 11, 13, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font: 700 10px/1 "Geist Mono", monospace;
+  letter-spacing: 0.1em;
+  color: #22c55e;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.prox-bulbs {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.prox-bulb {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  transition: all 0.15s ease;
+}
+
+.prox-bulb.green.lit { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+.prox-bulb.orange.lit { background: #f97316; box-shadow: 0 0 10px #f97316; }
+.prox-bulb.red.lit { background: #ef4444; box-shadow: 0 0 12px #ef4444; }
+
 /* Coach Cue Pill */
 .coach-cue {
   position: fixed;
@@ -1857,16 +1894,28 @@ dialog.garuda-modal::backdrop {
     padding: 18px 18px 16px;
   }
 
+  .prox-light-pill {
+    top: calc(max(12px, env(safe-area-inset-top)) + 48px);
+    left: 14px;
+    right: auto;
+    padding: 5px 10px;
+    font-size: 9px;
+    gap: 6px;
+  }
+
   .coach-cue {
-    top: calc(max(12px, env(safe-area-inset-top)) + 44px);
-    max-width: calc(100vw - 110px);
+    top: calc(max(12px, env(safe-area-inset-top)) + 80px);
+    left: 14px;
+    right: 60px;
+    transform: none;
+    max-width: none;
     height: auto;
     min-height: 28px;
-    padding: 6px 12px;
+    padding: 6px 11px;
     font-size: 11px;
     line-height: 1.25;
     white-space: normal;
-    text-align: center;
+    text-align: left;
   }
 
   .pass-sign {

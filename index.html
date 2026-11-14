@@ -8,6 +8,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Geist+Mono:wght@400;500;600;700&family=Geist:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Lexend+Giga:wght@600&family=Montserrat:wght@900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body data-glass="liquid" data-cam="follow" class="in-place">
 
@@ -57,14 +65,24 @@
         <span>GUIDE: ON</span>
       </button>
 
-      <div id="views" class="rn-seg wl-views" role="group" aria-label="Camera mode">
+      <div id="views" class="rn-seg wl-views" role="group" aria-label="3D Camera mode">
         <i class="rn-thumb" id="viewThumb"></i>
-        <button type="button" class="rn-opt on" data-cam="follow">FOLLOW</button>
-        <button type="button" class="rn-opt" data-cam="wide">WIDE</button>
-        <button type="button" class="rn-opt" data-cam="tight">CLOSE</button>
+        <button type="button" class="rn-opt on" data-cam="follow">3D CHASE</button>
+        <button type="button" class="rn-opt" data-cam="wide">WIDE 3D</button>
+        <button type="button" class="rn-opt" data-cam="tight">CLOSE 3D</button>
       </div>
     </div>
   </header>
+
+  <!-- 3-Light Obstacle Proximity Traffic Indicator -->
+  <div id="proxLightPill" class="prox-light-pill glass-panel" role="status" aria-live="polite">
+    <span class="prox-bulbs" aria-hidden="true">
+      <i id="bulbGreen" class="prox-bulb green lit"></i>
+      <i id="bulbOrange" class="prox-bulb orange"></i>
+      <i id="bulbRed" class="prox-bulb red"></i>
+    </span>
+    <span id="proxLightText">GREEN · SAFE</span>
+  </div>
 
   <!-- Live Coaching Cue Pill (Centered below header) -->
   <div id="coachCue" class="coach-cue glass-panel" role="status" aria-live="polite">

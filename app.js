@@ -1,7 +1,9 @@
 // ==========================================================================
-// GARUDA 2026: PRECISION PARKING & REVERSE ACADEMY
+// GARUDA 2026: 3D PRECISION PARKING & REVERSE ACADEMY (THREE.JS)
 // Ackermann Bicycle Kinematics + Ultrasonic Bumper Radar + Swiss Telemetry
 // ==========================================================================
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // 1. Modern Web Guidance: Invoker Commands & Light-Dismiss Dialog Fallbacks
 if (!('commandForElement' in HTMLButtonElement.prototype)) {
@@ -991,6 +993,8 @@ function loadBay(idx) {
   analytics.trackAttempt(bay);
   updateDockUI();
   if (typeof syncChatStageUI === 'function') syncChatStageUI();
+  if (typeof rebuildStage3D === 'function') rebuildStage3D(bay);
+  if (typeof rebuildReplay3D === 'function') rebuildReplay3D();
 }
 
 function setCoachCue(text, state = 'neutral') {
@@ -1302,6 +1306,7 @@ function startReplay() {
   document.getElementById('replayBtn')?.setAttribute('aria-pressed', 'true');
 
   const mistakeCount = replayPlan.mistakes.length;
+  if (typeof rebuildReplay3D === 'function') rebuildReplay3D();
   setCoachCue(
     mistakeCount > 0
       ? `REPLAYING YOUR DRIVE · Reviewing ${mistakeCount} mistake(s) vs. Ideal Green Line…`
@@ -1734,31 +1739,453 @@ function updatePhysics(dt) {
 }
 
 // ==========================================================================
-// 7. 2.5D CANVAS RENDERER (Asphalt, Bay Markings, Guides, Car & Night Lights)
+// 7. THREE.JS 3D RENDERER (Asphalt, 3D Obstacles, Proximity Guides & Replay)
 // ==========================================================================
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
 
-function resizeCanvas() {
-  const isMobile = window.innerWidth <= 760 || window.innerWidth < window.innerHeight;
-  const uiScale = isMobile
-    ? 1
-    : Math.max(0.76, Math.min(1.12, Math.min(window.innerWidth / 1568, window.innerHeight / 913)));
-  document.documentElement.style.setProperty('--ui', uiScale.toFixed(4));
-  canvas.width = window.innerWidth * window.devicePixelRatio;
-  canvas.height = window.innerHeight * window.devicePixelRatio;
-  updateDockThumb();
-  updateViewThumb();
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#161417');
+scene.fog = new THREE.FogExp2('#161417', 0.00072);
+
+const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 10, 3200);
+camera.position.set(-140, 290, 260);
+
+const orbitControls = new OrbitControls(camera, canvas);
+orbitControls.enableDamping = true;
+orbitControls.dampingFactor = 0.08;
+orbitControls.maxPolarAngle = Math.PI * 0.46;
+orbitControls.minDistance = 120;
+orbitControls.maxDistance = 1100;
+orbitControls.target.set(0, 0, 0);
+
+// Studio & Lot Lighting
+const hemiLight = new THREE.HemisphereLight('#fff2df', '#262126', 0.95);
+scene.add(hemiLight);
+
+const sunLight = new THREE.DirectionalLight('#fff5e6', 2.05);
+sunLight.position.set(220, 440, 200);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.near = 60;
+sunLight.shadow.camera.far = 1400;
+sunLight.shadow.camera.left = -620;
+sunLight.shadow.camera.right = 620;
+sunLight.shadow.camera.top = 460;
+sunLight.shadow.camera.bottom = -460;
+sunLight.shadow.bias = -0.0006;
+scene.add(sunLight);
+
+const rimLight = new THREE.DirectionalLight('#ffb86c', 0.52);
+rimLight.position.set(-340, 180, -280);
+scene.add(rimLight);
+
+function createAsphaltTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1e1c20';
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 4800; i++) {
+    const shade = 24 + Math.floor(Math.random() * 20);
+    g.fillStyle = `rgb(${shade},${shade - 1},${shade + 2})`;
+    g.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+  }
+  g.strokeStyle = 'rgba(255, 224, 178, 0.065)';
+  g.lineWidth = 2;
+  for (let p = 0; p < 512; p += 128) {
+    g.beginPath();
+    g.moveTo(p, 0);
+    g.lineTo(p, 512);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(0, p);
+    g.lineTo(512, p);
+    g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(9, 6);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
-window.addEventListener('resize', resizeCanvas);
+
+const groundGroup = new THREE.Group();
+scene.add(groundGroup);
+
+const asphaltMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(1180, 820),
+  new THREE.MeshStandardMaterial({
+    map: createAsphaltTexture(),
+    roughness: 0.9,
+    metalness: 0.05
+  })
+);
+asphaltMesh.rotation.x = -Math.PI / 2;
+asphaltMesh.receiveShadow = true;
+groundGroup.add(asphaltMesh);
+
+// Raised 3D Perimeter Curbs framing the training court
+const courtWallMat = new THREE.MeshStandardMaterial({ color: '#332e33', roughness: 0.85 });
+[
+  { w: 1180, h: 18, d: 14, x: 0, z: -410 },
+  { w: 1180, h: 18, d: 14, x: 0, z: 410 },
+  { w: 14, h: 18, d: 834, x: -590, z: 0 },
+  { w: 14, h: 18, d: 834, x: 590, z: 0 }
+].forEach((b) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), courtWallMat);
+  m.position.set(b.x, b.h / 2, b.z);
+  m.receiveShadow = true;
+  m.castShadow = true;
+  groundGroup.add(m);
+});
+
+function createTextSprite(text, { bg = 'rgba(14,10,12,0.88)', border = '#ffc570', color = '#ffe5b4', scaleX = 76, scaleY = 21 } = {}) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 140;
+  const g = c.getContext('2d');
+  g.fillStyle = bg;
+  g.beginPath();
+  g.roundRect(14, 18, 484, 104, 24);
+  g.fill();
+  g.lineWidth = 5;
+  g.strokeStyle = border;
+  g.stroke();
+  g.fillStyle = color;
+  g.font = '800 40px "Geist Mono", monospace';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 256, 72);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(scaleX, scaleY, 1);
+  return sprite;
+}
+
+function disposeObject3D(root) {
+  root.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((m) => {
+        if (m.map) m.map.dispose();
+        m.dispose();
+      });
+    }
+  });
+}
+
+function build3DCarMesh({ length = 92, width = 44, bodyColor = '#c4161f', isPlayer = false } = {}) {
+  const g = new THREE.Group();
+  const h = isPlayer ? 22 : 23;
+
+  const paintMat = new THREE.MeshStandardMaterial({
+    color: bodyColor,
+    roughness: 0.28,
+    metalness: 0.42
+  });
+  const trimMat = new THREE.MeshStandardMaterial({ color: '#16171c', roughness: 0.72, metalness: 0.25 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: '#0d1420', roughness: 0.12, metalness: 0.85 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: '#111215', roughness: 0.9 });
+  const rimMat = new THREE.MeshStandardMaterial({ color: '#d6dbe0', roughness: 0.25, metalness: 0.88 });
+
+  // Lower chassis body
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(length, h * 0.56, width - 2), paintMat);
+  chassis.position.y = h * 0.42;
+  chassis.castShadow = true;
+  chassis.receiveShadow = true;
+  g.add(chassis);
+
+  // Sculpted cabin roof
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(length * 0.5, h * 0.48, width - 8), paintMat);
+  cabin.position.set(-length * 0.04, h * 0.84, 0);
+  cabin.castShadow = true;
+  g.add(cabin);
+
+  // Tinted glasshouse
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(length * 0.47, h * 0.36, width - 6.5), glassMat);
+  glass.position.set(-length * 0.035, h * 0.84, 0);
+  g.add(glass);
+
+  // Front grille + Rear diffuser
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(2.5, h * 0.28, width * 0.58), trimMat);
+  grille.position.set(length / 2 - 0.5, h * 0.34, 0);
+  g.add(grille);
+
+  const rearDiff = new THREE.Mesh(new THREE.BoxGeometry(2.5, h * 0.22, width * 0.62), trimMat);
+  rearDiff.position.set(-length / 2 + 0.5, h * 0.3, 0);
+  g.add(rearDiff);
+
+  // 4 Wheels (front axle steerable on player)
+  const wheelGeo = new THREE.CylinderGeometry(8.2, 8.2, 5.2, 16);
+  wheelGeo.rotateX(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(4.4, 4.4, 5.4, 12);
+  rimGeo.rotateX(Math.PI / 2);
+
+  const axleX = length * 0.315;
+  const axleZ = width * 0.47;
+  const frontWheels = [];
+
+  [
+    { x: axleX, z: -axleZ, front: true },
+    { x: axleX, z: axleZ, front: true },
+    { x: -axleX, z: -axleZ, front: false },
+    { x: -axleX, z: axleZ, front: false }
+  ].forEach((w) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(w.x, 8.2, w.z);
+    const tire = new THREE.Mesh(wheelGeo, tireMat);
+    tire.castShadow = true;
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    pivot.add(tire, rim);
+    g.add(pivot);
+    if (w.front) frontWheels.push(pivot);
+  });
+
+  // Headlight + Taillight clusters
+  const headMat = new THREE.MeshStandardMaterial({ color: '#fff7e6', emissive: '#ffedd0', emissiveIntensity: 1.5 });
+  const tailMat = new THREE.MeshStandardMaterial({ color: '#ff3b3b', emissive: '#ff2424', emissiveIntensity: 1.2 });
+  [-width * 0.32, width * 0.32].forEach((zOff) => {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(2, 4.5, 8.5), headMat);
+    hl.position.set(length / 2 - 0.4, h * 0.46, zOff);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(2, 4.5, 8.5), tailMat);
+    tl.position.set(-length / 2 + 0.4, h * 0.46, zOff);
+    g.add(hl, tl);
+  });
+
+  g.userData = { frontWheels, tailMat, paintMat };
+
+  if (isPlayer) {
+    const goldMat = new THREE.MeshStandardMaterial({ color: '#ffc570', metalness: 0.75, roughness: 0.25 });
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(length * 0.56, 0.8, 3.2), goldMat);
+    stripe.position.set(length * 0.12, h * 0.71, 0);
+    g.add(stripe);
+
+    // Volumetric headlight cones + Night SpotLight
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: '#fff4d6',
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const beams = [-width * 0.3, width * 0.3].map((zOff) => {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(34, 185, 18, 1, true), beamMat);
+      cone.rotation.z = Math.PI / 2;
+      cone.position.set(length / 2 + 90, 9, zOff);
+      g.add(cone);
+      return cone;
+    });
+
+    const headSpot = new THREE.SpotLight('#fff0d2', 0, 420, Math.PI * 0.25, 0.65, 1.1);
+    headSpot.position.set(length / 2, 14, 0);
+    const spotTarget = new THREE.Object3D();
+    spotTarget.position.set(length / 2 + 160, 0, 0);
+    g.add(headSpot, spotTarget);
+    headSpot.target = spotTarget;
+
+    g.userData.beams = beams;
+    g.userData.headSpot = headSpot;
+  }
+
+  return g;
+}
+
+const playerCarMesh = build3DCarMesh({ length: CAR.length, width: CAR.width, bodyColor: '#cc1622', isPlayer: true });
+scene.add(playerCarMesh);
+
+const stageEnvGroup = new THREE.Group();
+const guidesGroup = new THREE.Group();
+const replayGroup = new THREE.Group();
+scene.add(stageEnvGroup, guidesGroup, replayGroup);
+
+let stageObsEntries = [];
+let targetBayObj = null;
+
+function createStageObstacle3D(obs) {
+  const root = new THREE.Group();
+  root.position.set(obs.x, 0, obs.y);
+  root.rotation.y = -(obs.angle || 0);
+  const flashMats = [];
+
+  if (obs.type === 'cone') {
+    const r = obs.r || 10;
+    const baseMat = new THREE.MeshStandardMaterial({ color: '#1b1b1d', roughness: 0.9 });
+    const coneMat = new THREE.MeshStandardMaterial({ color: '#ff6d3b', roughness: 0.45 });
+    const collarMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', emissive: '#ffffff', emissiveIntensity: 0.22 });
+    const base = new THREE.Mesh(new THREE.BoxGeometry(r * 2.1, 3, r * 2.1), baseMat);
+    base.position.y = 1.5;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 0.88, 26, 16), coneMat);
+    cone.position.y = 15;
+    cone.castShadow = true;
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.46, r * 0.62, 6, 16), collarMat);
+    collar.position.y = 14;
+    root.add(base, cone, collar);
+    flashMats.push(coneMat);
+  } else if (obs.type === 'car') {
+    const longSide = Math.max(obs.w, obs.h);
+    const shortSide = Math.min(obs.w, obs.h);
+    const car3d = build3DCarMesh({
+      length: longSide,
+      width: shortSide,
+      bodyColor: obs.color || '#3e4a59',
+      isPlayer: false
+    });
+    if (obs.h > obs.w) {
+      car3d.rotation.y = Math.PI / 2;
+    }
+    root.add(car3d);
+    if (car3d.userData.paintMat) flashMats.push(car3d.userData.paintMat);
+  } else if (obs.type === 'pillar') {
+    const pillarMat = new THREE.MeshStandardMaterial({ color: '#6b6561', roughness: 0.78 });
+    const stripeMat = new THREE.MeshStandardMaterial({ color: '#f59e0b', roughness: 0.45 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(obs.w, 68, obs.h), pillarMat);
+    body.position.y = 34;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    const hazardBand = new THREE.Mesh(new THREE.BoxGeometry(obs.w + 1.5, 11, obs.h + 1.5), stripeMat);
+    hazardBand.position.y = 9;
+    root.add(body, hazardBand);
+    flashMats.push(pillarMat);
+  } else {
+    // Wall or Curb
+    const h3d = obs.type === 'curb' ? 12 : 38;
+    const mat = new THREE.MeshStandardMaterial({
+      color: obs.type === 'curb' ? '#4a4648' : '#3a3432',
+      roughness: 0.85
+    });
+    const block = new THREE.Mesh(new THREE.BoxGeometry(obs.w, h3d, obs.h), mat);
+    block.position.y = h3d / 2;
+    block.castShadow = true;
+    block.receiveShadow = true;
+    const cap = new THREE.Mesh(
+      new THREE.BoxGeometry(obs.w + 1, 2.5, obs.h + 1),
+      new THREE.MeshStandardMaterial({ color: obs.type === 'curb' ? '#94a3b8' : '#78716c', roughness: 0.7 })
+    );
+    cap.position.y = h3d + 1;
+    root.add(block, cap);
+    flashMats.push(mat);
+  }
+
+  return { obs, root, flashMats };
+}
+
+function rebuildStage3D(bay) {
+  while (stageEnvGroup.children.length) {
+    const child = stageEnvGroup.children[0];
+    stageEnvGroup.remove(child);
+    disposeObject3D(child);
+  }
+  stageObsEntries = [];
+  if (!bay) return;
+
+  // Target Parking Bay 3D
+  const t = bay.target;
+  const bayGroup = new THREE.Group();
+  bayGroup.position.set(t.x, 0, t.y);
+  bayGroup.rotation.y = -t.angle;
+
+  const fillMat = new THREE.MeshBasicMaterial({
+    color: '#ffc570',
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.DoubleSide
+  });
+  const fillMesh = new THREE.Mesh(new THREE.PlaneGeometry(t.h, t.w), fillMat);
+  fillMesh.rotation.x = -Math.PI / 2;
+  fillMesh.position.y = 0.6;
+
+  const hw = t.h / 2;
+  const hd = t.w / 2;
+  const pts = [
+    new THREE.Vector3(-hw, 1.2, -hd),
+    new THREE.Vector3(hw, 1.2, -hd),
+    new THREE.Vector3(hw, 1.2, hd),
+    new THREE.Vector3(-hw, 1.2, hd),
+    new THREE.Vector3(-hw, 1.2, -hd)
+  ];
+  const borderMat = new THREE.LineBasicMaterial({ color: '#ffc570' });
+  const borderLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), borderMat);
+
+  const labelText = `PARK · ${bay.id}`;
+  const labelSprite = createTextSprite(labelText, { scaleX: 74, scaleY: 20 });
+  labelSprite.position.set(0, 26, 0);
+
+  bayGroup.add(fillMesh, borderLine, labelSprite);
+  stageEnvGroup.add(bayGroup);
+
+  targetBayObj = {
+    bayId: bay.id,
+    group: bayGroup,
+    fillMat,
+    borderMat,
+    labelSprite,
+    lastLabel: labelText,
+    lastState: ''
+  };
+
+  // Stage 3D Obstacles
+  for (const obs of bay.obstacles) {
+    const entry = createStageObstacle3D(obs);
+    stageEnvGroup.add(entry.root);
+    stageObsEntries.push(entry);
+  }
+}
+
+function updateTargetBay3D(bay) {
+  if (!targetBayObj || !bay) return;
+  const isGreen = bayCleared || bayPosState === 'aligned';
+  const isPartial = bayPosState === 'partial';
+  const colorHex = isGreen ? '#4ade80' : isPartial ? '#ffa92c' : '#ffc570';
+  const nextLabel = bayCleared
+    ? '✓ GRADED'
+    : isGreen
+      ? 'CLICK [P] TO PARK'
+      : isPartial
+        ? 'ALIGN & CLICK [P]'
+        : `PARK · ${bay.id}`;
+
+  targetBayObj.fillMat.color.set(colorHex);
+  targetBayObj.fillMat.opacity = bayCleared ? 0.34 : isGreen ? 0.25 : isPartial ? 0.18 : 0.13;
+  targetBayObj.borderMat.color.set(colorHex);
+
+  if (targetBayObj.lastLabel !== nextLabel) {
+    targetBayObj.group.remove(targetBayObj.labelSprite);
+    if (targetBayObj.labelSprite.material?.map) targetBayObj.labelSprite.material.map.dispose();
+    targetBayObj.labelSprite.material?.dispose();
+
+    targetBayObj.labelSprite = createTextSprite(nextLabel, {
+      border: colorHex,
+      color: colorHex,
+      scaleX: nextLabel.length > 12 ? 96 : 74,
+      scaleY: 21
+    });
+    targetBayObj.labelSprite.position.set(0, 26, 0);
+    targetBayObj.group.add(targetBayObj.labelSprite);
+    targetBayObj.lastLabel = nextLabel;
+  }
+}
 
 function getProximityLightInfo(clearancePx) {
   if (clearancePx < 16) {
     return {
       level: 'red',
       hex: '#ef4444',
-      rgba: 'rgba(239, 68, 68, 0.88)',
-      glow: 'rgba(239, 68, 68, 0.55)',
       label: 'RED · TOO CLOSE!'
     };
   }
@@ -1766,266 +2193,129 @@ function getProximityLightInfo(clearancePx) {
     return {
       level: 'orange',
       hex: '#f97316',
-      rgba: 'rgba(249, 115, 22, 0.86)',
-      glow: 'rgba(249, 115, 22, 0.45)',
       label: 'ORANGE · GETTING CLOSER'
     };
   }
   return {
     level: 'green',
     hex: '#22c55e',
-    rgba: 'rgba(34, 197, 94, 0.84)',
-    glow: 'rgba(34, 197, 94, 0.42)',
     label: 'GREEN · SAFE'
   };
 }
 
-function drawReplayOverlay() {
+let lastProxHudState = '';
+function syncProximityHud(activeLight) {
+  if (!activeLight || lastProxHudState === activeLight.level) return;
+  lastProxHudState = activeLight.level;
+  document.getElementById('bulbGreen')?.classList.toggle('lit', activeLight.level === 'green');
+  document.getElementById('bulbOrange')?.classList.toggle('lit', activeLight.level === 'orange');
+  document.getElementById('bulbRed')?.classList.toggle('lit', activeLight.level === 'red');
+  const pill = document.getElementById('proxLightPill');
+  const txt = document.getElementById('proxLightText');
+  if (pill) {
+    pill.style.color = activeLight.hex;
+    pill.style.borderColor = activeLight.hex;
+  }
+  if (txt) txt.textContent = activeLight.label;
+}
+
+function rebuildReplay3D() {
+  while (replayGroup.children.length) {
+    const child = replayGroup.children[0];
+    replayGroup.remove(child);
+    disposeObject3D(child);
+  }
   if (!replayPlan) return;
-  ctx.save();
 
-  // 1. Draw Ideal Reference Path (dashed cyan/emerald line) so player sees how to correct
+  // 1. Ideal Reference Path (dashed cyan 3D line)
   if (replayPlan.idealSamples && replayPlan.idealSamples.length > 1) {
-    ctx.lineWidth = 2.2;
-    ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.68)';
-    ctx.beginPath();
-    replayPlan.idealSamples.forEach((pt, idx) => {
-      if (idx === 0) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    const pts = replayPlan.idealSamples.map((p) => new THREE.Vector3(p.x, 2.2, p.y));
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineDashedMaterial({ color: '#38bdf8', dashSize: 7, gapSize: 5 })
+    );
+    line.computeLineDistances();
+    replayGroup.add(line);
   }
 
-  // 2. Draw Player's Recorded Trail color-coded by Green / Orange / Red obstacle clearance
-  const pts = replayPlan.samples;
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1];
-    const b = pts[i];
+  // 2. Recorded User Path color-coded by Green / Orange / Red obstacle clearance
+  const samples = replayPlan.samples || [];
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1];
+    const b = samples[i];
     const info = getProximityLightInfo(b.clearance ?? 60);
-    ctx.strokeStyle = info.hex;
-    ctx.lineWidth = 3.2;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
+    const seg = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(a.x, 3.0, a.y),
+        new THREE.Vector3(b.x, 3.0, b.y)
+      ]),
+      new THREE.LineBasicMaterial({ color: info.hex })
+    );
+    replayGroup.add(seg);
   }
 
-  // 3. Draw Mistake Markers (Collisions, Close Calls & Alignment Offsets)
+  // 3. 3D Mistake Markers & Floating Warning Callout Sprites
   (replayPlan.mistakes || []).forEach((m, idx) => {
-    ctx.save();
-    ctx.translate(m.x, m.y);
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
-    ctx.beginPath();
-    ctx.arc(0, 0, 16, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#ef4444';
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.font = '700 9.5px "Geist Mono", monospace';
-    const tag = `⚠ #${idx + 1} ${m.label.toUpperCase()}`;
-    const tw = ctx.measureText(tag).width + 12;
-    ctx.fillStyle = 'rgba(18, 8, 10, 0.92)';
-    roundRect(ctx, -tw / 2, -28, tw, 16, 5);
-    ctx.fill();
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = '#fca5a5';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(tag, 0, -20);
-    ctx.restore();
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(8, 13, 24),
+      new THREE.MeshBasicMaterial({ color: '#ef4444', side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(m.x, 2.5, m.y);
+    const orb = new THREE.Mesh(
+      new THREE.SphereGeometry(4.5, 14, 14),
+      new THREE.MeshBasicMaterial({ color: '#ef4444' })
+    );
+    orb.position.set(m.x, 6, m.y);
+    const badge = createTextSprite(`⚠ #${idx + 1} ${m.label.toUpperCase()}`, {
+      bg: 'rgba(24, 8, 10, 0.94)',
+      border: '#ef4444',
+      color: '#fca5a5',
+      scaleX: 86,
+      scaleY: 20
+    });
+    badge.position.set(m.x, 34, m.y);
+    replayGroup.add(ring, orb, badge);
   });
-
-  ctx.restore();
 }
 
-function drawScene() {
-  const w = canvas.width;
-  const h = canvas.height;
-  const dpr = window.devicePixelRatio || 1;
-  const isNight = document.body.classList.contains('amb-on');
-  const camMode = document.body.dataset.cam || 'follow';
-  const bay = BAYS[currentBayIdx];
-
-  // Asphalt background
-  ctx.fillStyle = isNight ? '#070914' : '#181617';
-  ctx.fillRect(0, 0, w, h);
-
-  // Subtle asphalt grid texture
-  ctx.save();
-  ctx.scale(dpr, dpr);
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  // Camera transform
-  let zoom = camMode === 'wide' ? 0.92 : camMode === 'tight' ? 1.45 : 1.15;
-  const isMobile = vw <= 760 || vw < vh;
-  if (isMobile) zoom *= 0.68;
-  const camX = camMode === 'wide' ? 0 : CAR.x * 0.55;
-  const camY = camMode === 'wide' ? 0 : CAR.y * 0.55;
-
-  ctx.translate(vw / 2, vh / 2 - (isMobile ? 42 : 20));
-  ctx.scale(zoom, zoom);
-  ctx.translate(-camX, -camY);
-
-  // Lot floor lines
-  ctx.strokeStyle = isNight ? 'rgba(180, 200, 255, 0.05)' : 'rgba(255, 240, 220, 0.05)';
-  ctx.lineWidth = 1;
-  for (let gx = -500; gx <= 500; gx += 40) {
-    ctx.beginPath();
-    ctx.moveTo(gx, -350);
-    ctx.lineTo(gx, 350);
-    ctx.stroke();
-  }
-  for (let gy = -360; gy <= 360; gy += 40) {
-    ctx.beginPath();
-    ctx.moveTo(-500, gy);
-    ctx.lineTo(500, gy);
-    ctx.stroke();
+function update3DGuides(bay) {
+  while (guidesGroup.children.length) {
+    const child = guidesGroup.children[0];
+    guidesGroup.remove(child);
+    disposeObject3D(child);
   }
 
-  // Target Parking Bay (Live color feedback: Gold -> Amber -> Emerald Green)
-  const t = bay.target;
-  const isGreen = bayCleared || bayPosState === 'aligned';
-  const isPartial = bayPosState === 'partial';
-  ctx.save();
-  ctx.translate(t.x, t.y);
-  ctx.rotate(t.angle);
-  if (isGreen) {
-    ctx.shadowColor = '#4ade80';
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = bayCleared ? 'rgba(74, 222, 128, 0.28)' : 'rgba(74, 222, 128, 0.20)';
-  } else if (isPartial) {
-    ctx.fillStyle = 'rgba(255, 169, 44, 0.15)';
-  } else {
-    ctx.fillStyle = 'rgba(232, 171, 54, 0.10)';
-  }
-  ctx.fillRect(-t.h / 2, -t.w / 2, t.h, t.w);
-  ctx.strokeStyle = isGreen ? '#4ade80' : isPartial ? '#ffa92c' : '#ffc570';
-  ctx.lineWidth = isGreen ? 3.5 : 2.5;
-  ctx.setLineDash(isGreen ? [] : [8, 6]);
-  ctx.strokeRect(-t.h / 2, -t.w / 2, t.h, t.w);
-  ctx.setLineDash([]);
-  ctx.shadowBlur = 0;
+  // Compute live & rollout clearance so #proxLightPill is always accurate even if guides toggled off
+  const liveClearance = getCarClearance(CAR.x, CAR.y, CAR.angle, bay).dist;
+  let worstClearance = liveClearance;
 
-  ctx.fillStyle = isGreen ? '#4ade80' : isPartial ? '#ffa92c' : 'rgba(255, 197, 112, 0.72)';
-  ctx.font = '700 10.5px "Geist Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const bayLabelText = bayCleared
-    ? '✓ GRADED'
-    : isGreen
-      ? 'CLICK [P] TO PARK'
-      : isPartial
-        ? 'ALIGN & CLICK [P]'
-        : `PARK · ${bay.id} ▸`;
-  ctx.fillText(bayLabelText, 0, 0);
-  ctx.restore();
-
-  // Obstacles (Curbs, Pillars, Cones, Parked Cars)
-  const nowMs = performance.now();
-  for (const obs of bay.obstacles) {
-    ctx.save();
-    ctx.translate(obs.x, obs.y);
-    if (obs.angle) ctx.rotate(obs.angle);
-    const isHit = obs === hitObsRef && nowMs < hitObsUntil;
-    if (isHit) {
-      ctx.shadowColor = '#ff4d4d';
-      ctx.shadowBlur = 16;
-    }
-
-    if (obs.type === 'cone') {
-      ctx.beginPath();
-      ctx.arc(0, 0, obs.r, 0, Math.PI * 2);
-      ctx.fillStyle = '#ff6d3b';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(0, 0, obs.r * 0.48, 0, Math.PI * 2);
-      ctx.fillStyle = '#f6faf9';
-      ctx.fill();
-    } else if (obs.type === 'car') {
-      // Parked car obstacle (matches exact obs.w × obs.h collision box)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fillRect(-obs.w / 2 + 4, -obs.h / 2 + 5, obs.w, obs.h);
-      ctx.fillStyle = obs.color || '#3e4a59';
-      roundRect(ctx, -obs.w / 2, -obs.h / 2, obs.w, obs.h, 8);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      // Windshield along longer axis
-      ctx.fillStyle = 'rgba(10, 14, 22, 0.72)';
-      if (obs.w >= obs.h) {
-        roundRect(ctx, -obs.w / 4, -obs.h / 2 + 5, obs.w * 0.55, obs.h - 10, 5);
-      } else {
-        roundRect(ctx, -obs.w / 2 + 5, -obs.h / 4, obs.w - 10, obs.h * 0.55, 5);
-      }
-      ctx.fill();
-    } else {
-      // Curb / Wall / Concrete Pillar
-      ctx.fillStyle = obs.type === 'pillar' ? '#645c58' : '#3a3432';
-      ctx.fillRect(-obs.w / 2, -obs.h / 2, obs.w, obs.h);
-      ctx.strokeStyle = obs.type === 'pillar' ? '#ffc570' : 'rgba(255, 255, 255, 0.25)';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(-obs.w / 2, -obs.h / 2, obs.w, obs.h);
-    }
-    ctx.restore();
+  if (!showGuides) {
+    syncProximityHud(getProximityLightInfo(worstClearance));
+    return;
   }
 
-  // Draw Replay Overlay (recorded user trail + mistake callouts + ideal path) when replaying
-  if (isReplaying || replayPlan) {
-    drawReplayOverlay();
-  }
+  // Instructor Auto-Demo Ideal Path + Pivot Markers
+  if ((autoDemo || demoDone) && demoPlan && demoPlan.samples.length > 1) {
+    const demoPts = demoPlan.samples.map((p) => new THREE.Vector3(p.x, 2.4, p.y));
+    const demoLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(demoPts),
+      new THREE.LineDashedMaterial({ color: '#4ade80', dashSize: 6, gapSize: 5 })
+    );
+    demoLine.computeLineDistances();
+    guidesGroup.add(demoLine);
 
-  // Ackermann Predicted Trajectory Arcs with Green / Orange / Red Proximity Lights
-  if (showGuides) {
-    drawTrajectoryGuides();
-  }
-
-  // Player Tonna Car
-  drawPlayerCar(isNight);
-
-  ctx.restore();
-}
-
-function drawTrajectoryGuides() {
-  const bay = BAYS[currentBayIdx];
-
-  // Draw Instructor Demo Reference Path & Pivot Markers when demo is active or completed
-  if ((autoDemo || demoDone) && demoPlan && demoPlan.samples.length) {
-    ctx.save();
-    ctx.lineWidth = 2.5;
-    ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = 'rgba(74, 222, 128, 0.65)';
-    ctx.beginPath();
-    demoPlan.samples.forEach((pt, idx) => {
-      if (idx === 0) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
+    (demoPlan.pivots || []).forEach((pv) => {
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(5, 12, 12),
+        new THREE.MeshBasicMaterial({ color: '#ffc570' })
+      );
+      marker.position.set(pv.x, 6, pv.y);
+      guidesGroup.add(marker);
     });
-    ctx.stroke();
-    ctx.setLineDash([]);
-    demoPlan.pivots.forEach((pv, i) => {
-      ctx.fillStyle = '#ffc570';
-      ctx.beginPath();
-      ctx.arc(pv.x, pv.y, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.font = '700 9px "Geist Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`PIVOT ${i + 1} (${pv.gear})`, pv.x, pv.y - 10);
-    });
-    ctx.restore();
   }
 
+  // Ackermann Predicted Rails (Green / Orange / Red)
   const steps = 22;
   const stepDt = 0.075;
   const dir = activeGear === 'R' || keys.down || CAR.speed < -2 ? -1 : 1;
@@ -2035,10 +2325,6 @@ function drawTrajectoryGuides() {
   let sy = CAR.y;
   let sa = CAR.angle;
 
-  const liveClearance = getCarClearance(CAR.x, CAR.y, CAR.angle, bay).dist;
-  let worstClearance = liveClearance;
-
-  // Left & Right tire paths + per-step obstacle clearance for Green / Orange / Red light coloring
   const leftPts = [];
   const rightPts = [];
   const stepLights = [];
@@ -2050,10 +2336,7 @@ function drawTrajectoryGuides() {
     sy += Math.sin(sa) * simSpeed * stepDt;
 
     const stepClearance = getCarClearance(sx, sy, sa, bay).dist;
-    // Weight near-field trajectory steps into overall guide light state
-    if (i < 12 && stepClearance < worstClearance) {
-      worstClearance = stepClearance;
-    }
+    if (i < 12 && stepClearance < worstClearance) worstClearance = stepClearance;
     const light = getProximityLightInfo(Math.min(liveClearance, stepClearance));
     stepLights.push(light);
 
@@ -2062,188 +2345,148 @@ function drawTrajectoryGuides() {
     const ry = sy + Math.sin(sa) * rearOff;
     const nx = -Math.sin(sa) * (CAR.width / 2 - 4);
     const ny = Math.cos(sa) * (CAR.width / 2 - 4);
-    leftPts.push({ x: rx + nx, y: ry + ny });
-    rightPts.push({ x: rx - nx, y: ry - ny });
+    leftPts.push(new THREE.Vector3(rx + nx, 2.2, ry + ny));
+    rightPts.push(new THREE.Vector3(rx - nx, 2.2, ry - ny));
   }
 
   const activeLight = getProximityLightInfo(worstClearance);
+  syncProximityHud(activeLight);
 
-  ctx.save();
-  ctx.lineWidth = 2.6;
-  ctx.setLineDash([6, 4]);
-
-  // Draw per-segment colored left and right guide rails (Green = Safe, Orange = Getting Closer, Red = Too Close)
   [leftPts, rightPts].forEach((pts) => {
     for (let i = 1; i < pts.length; i++) {
-      ctx.strokeStyle = stepLights[i].rgba;
-      ctx.beginPath();
-      ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
-      ctx.lineTo(pts[i].x, pts[i].y);
-      ctx.stroke();
+      const seg = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([pts[i - 1], pts[i]]),
+        new THREE.LineBasicMaterial({ color: stepLights[i].hex })
+      );
+      guidesGroup.add(seg);
     }
   });
 
-  // Distance zone crossbars & glowing LED proximity light beacons along the guide rails
-  ctx.setLineDash([]);
-  ctx.lineWidth = 1.6;
+  const nodeGeo = new THREE.SphereGeometry(3.4, 10, 10);
   [4, 9, 14, 19].forEach((idx) => {
     const l = leftPts[idx];
     const r = rightPts[idx];
     const light = stepLights[idx];
     if (!l || !r || !light) return;
-
-    ctx.strokeStyle = light.rgba;
-    ctx.beginPath();
-    ctx.moveTo(l.x, l.y);
-    ctx.lineTo(r.x, r.y);
-    ctx.stroke();
-
-    // Glowing LED light nodes on both rails
-    [l, r].forEach((pt) => {
-      ctx.save();
-      ctx.shadowColor = light.hex;
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = light.hex;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 3.6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
+    const barMat = new THREE.LineBasicMaterial({ color: light.hex });
+    const bar = new THREE.Line(new THREE.BufferGeometry().setFromPoints([l, r]), barMat);
+    const ledMat = new THREE.MeshBasicMaterial({ color: light.hex });
+    const ledL = new THREE.Mesh(nodeGeo.clone(), ledMat);
+    ledL.position.copy(l);
+    const ledR = new THREE.Mesh(nodeGeo.clone(), ledMat);
+    ledR.position.copy(r);
+    guidesGroup.add(bar, ledL, ledR);
   });
+  nodeGeo.dispose();
 
-  // 3-Light Traffic Indicator Pill at the tip of the guide line (Green / Orange / Red)
-  const tipL = leftPts[leftPts.length - 1];
-  const tipR = rightPts[rightPts.length - 1];
-  if (tipL && tipR) {
-    const mx = (tipL.x + tipR.x) / 2;
-    const my = (tipL.y + tipR.y) / 2;
-    ctx.save();
-    ctx.font = '700 8.5px "Geist Mono", monospace';
-    const textW = ctx.measureText(activeLight.label).width;
-    const pillW = textW + 46;
-    const pillH = 18;
-
-    ctx.fillStyle = 'rgba(12, 10, 12, 0.88)';
-    roundRect(ctx, mx - pillW / 2, my - pillH / 2, pillW, pillH, 9);
-    ctx.fill();
-    ctx.strokeStyle = activeLight.hex;
-    ctx.lineWidth = 1.3;
-    ctx.stroke();
-
-    // Draw 3 mini LED bulbs (Green, Orange, Red) inside the pill
-    const lightsOrder = [
-      { id: 'green', hex: '#22c55e' },
-      { id: 'orange', hex: '#f97316' },
-      { id: 'red', hex: '#ef4444' }
-    ];
-    lightsOrder.forEach((bulb, bIdx) => {
-      const bx = mx - pillW / 2 + 10 + bIdx * 10;
-      const isLit = activeLight.level === bulb.id;
-      ctx.save();
-      if (isLit) {
-        ctx.shadowColor = bulb.hex;
-        ctx.shadowBlur = 8;
-      }
-      ctx.fillStyle = isLit ? bulb.hex : 'rgba(255, 255, 255, 0.18)';
-      ctx.beginPath();
-      ctx.arc(bx, my, isLit ? 3.6 : 2.6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    ctx.fillStyle = activeLight.hex;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(activeLight.label, mx - pillW / 2 + 38, my + 0.5);
-    ctx.restore();
-  }
-
-  // Rear-axle pivot crosshair
+  // Rear-axle pivot crosshair beacon
   const px = CAR.x - Math.cos(CAR.angle) * (CAR.wheelbase / 2);
   const py = CAR.y - Math.sin(CAR.angle) * (CAR.wheelbase / 2);
-  ctx.setLineDash([]);
-  ctx.fillStyle = activeLight.hex;
-  ctx.beginPath();
-  ctx.arc(px, py, 3.8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  const pivotDot = new THREE.Mesh(
+    new THREE.SphereGeometry(3.8, 12, 12),
+    new THREE.MeshBasicMaterial({ color: activeLight.hex })
+  );
+  pivotDot.position.set(px, 4, py);
+  guidesGroup.add(pivotDot);
 }
 
-function drawPlayerCar(isNight) {
-  ctx.save();
-  ctx.translate(CAR.x, CAR.y);
-  ctx.rotate(CAR.angle);
+function syncThreeAmbience(night) {
+  scene.background.set(night ? '#050814' : '#161417');
+  scene.fog.color.set(night ? '#050814' : '#161417');
+  sunLight.intensity = night ? 0.55 : 2.05;
+  hemiLight.intensity = night ? 0.36 : 0.95;
+  const spot = playerCarMesh.userData.headSpot;
+  if (spot) spot.intensity = night ? 6.5 : 0;
+  (playerCarMesh.userData.beams || []).forEach((b) => {
+    b.material.opacity = night ? 0.22 : 0.0;
+  });
+}
 
-  // Night headlights & reverse lights
-  if (isNight) {
-    const headGrad = ctx.createLinearGradient(CAR.length / 2, 0, CAR.length / 2 + 170, 0);
-    headGrad.addColorStop(0, 'rgba(255, 246, 224, 0.34)');
-    headGrad.addColorStop(1, 'rgba(255, 246, 224, 0)');
-    ctx.fillStyle = headGrad;
-    ctx.beginPath();
-    ctx.moveTo(CAR.length / 2, -16);
-    ctx.lineTo(CAR.length / 2 + 170, -54);
-    ctx.lineTo(CAR.length / 2 + 170, 54);
-    ctx.lineTo(CAR.length / 2, 16);
-    ctx.closePath();
-    ctx.fill();
+let prevCamCarX = 0;
+let prevCamCarY = 0;
+let lastCamModeApplied = null;
+
+function applyCameraPreset(camMode) {
+  const isMobile = window.innerWidth <= 760 || window.innerWidth < window.innerHeight;
+  const mult = isMobile ? 1.28 : 1.0;
+  if (camMode === 'wide') {
+    camera.position.set(0, 610 * mult, 430 * mult);
+    orbitControls.target.set(0, 0, 0);
+  } else if (camMode === 'tight') {
+    camera.position.set(CAR.x - 105 * mult, 155 * mult, CAR.y + 150 * mult);
+    orbitControls.target.set(CAR.x, 6, CAR.y);
+  } else {
+    camera.position.set(CAR.x - 145 * mult, 270 * mult, CAR.y + 245 * mult);
+    orbitControls.target.set(CAR.x * 0.65, 6, CAR.y * 0.65);
+  }
+  prevCamCarX = CAR.x;
+  prevCamCarY = CAR.y;
+}
+
+function resizeCanvas() {
+  const isMobile = window.innerWidth <= 760 || window.innerWidth < window.innerHeight;
+  const uiScale = isMobile
+    ? 1
+    : Math.max(0.76, Math.min(1.12, Math.min(window.innerWidth / 1568, window.innerHeight / 913)));
+  document.documentElement.style.setProperty('--ui', uiScale.toFixed(4));
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  updateDockThumb();
+  updateViewThumb();
+}
+window.addEventListener('resize', resizeCanvas);
+
+function drawScene() {
+  const bay = BAYS[currentBayIdx];
+  const camMode = document.body.dataset.cam || 'follow';
+
+  // Sync Player 3D Car pose & animated steering wheels + brake/reverse lights
+  playerCarMesh.position.set(CAR.x, 0, CAR.y);
+  playerCarMesh.rotation.y = -CAR.angle;
+  (playerCarMesh.userData.frontWheels || []).forEach((w) => {
+    w.rotation.y = -CAR.steer;
+  });
+  const isReversing = CAR.speed < -3 || activeGear === 'R';
+  if (playerCarMesh.userData.tailMat) {
+    playerCarMesh.userData.tailMat.color.set(isReversing ? '#ffffff' : '#ff3b3b');
+    playerCarMesh.userData.tailMat.emissive.set(isReversing ? '#ffffff' : keys.brake ? '#ff5555' : '#cc1818');
+    playerCarMesh.userData.tailMat.emissiveIntensity = keys.brake || isReversing ? 2.4 : 0.9;
   }
 
-  // Drop shadow
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
-  roundRect(ctx, -CAR.length / 2 + 3, -CAR.width / 2 + 4, CAR.length, CAR.width, 9);
-  ctx.fill();
+  // Highlight collided obstacle briefly in crimson glow
+  const nowMs = performance.now();
+  for (const entry of stageObsEntries) {
+    const isHit = entry.obs === hitObsRef && nowMs < hitObsUntil;
+    entry.flashMats.forEach((m) => {
+      m.emissive.setHex(isHit ? 0xff2222 : 0x000000);
+      m.emissiveIntensity = isHit ? 0.65 : 0;
+    });
+  }
 
-  // Front steerable wheels
-  const wheelX = CAR.wheelbase / 2;
-  [-CAR.width / 2 - 1, CAR.width / 2 - 4].forEach((wy) => {
-    ctx.save();
-    ctx.translate(wheelX, wy + 2.5);
-    ctx.rotate(CAR.steer);
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-7, -2.5, 14, 5);
-    ctx.restore();
-  });
+  // Live Target Bay & Proximity 3D Guides
+  updateTargetBay3D(bay);
+  update3DGuides(bay);
 
-  // Crimson Lacquered Garuda Body
-  const bodyGrad = ctx.createLinearGradient(-CAR.length / 2, -CAR.width / 2, CAR.length / 2, CAR.width / 2);
-  bodyGrad.addColorStop(0, '#a80f18');
-  bodyGrad.addColorStop(0.5, '#da1f26');
-  bodyGrad.addColorStop(1, '#7c0910');
-  ctx.fillStyle = bodyGrad;
-  roundRect(ctx, -CAR.length / 2, -CAR.width / 2, CAR.length, CAR.width, 9);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 214, 150, 0.55)';
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
+  // Follow Car smoothly without fighting user manual 3D Orbit drag
+  if (lastCamModeApplied !== camMode) {
+    lastCamModeApplied = camMode;
+    applyCameraPreset(camMode);
+  } else if (camMode !== 'wide') {
+    const dx = CAR.x - prevCamCarX;
+    const dy = CAR.y - prevCamCarY;
+    if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+      orbitControls.target.x += dx * 0.72;
+      orbitControls.target.z += dy * 0.72;
+      camera.position.x += dx * 0.72;
+      camera.position.z += dy * 0.72;
+    }
+  }
+  prevCamCarX = CAR.x;
+  prevCamCarY = CAR.y;
 
-  // Cabin Glass
-  ctx.fillStyle = 'rgba(12, 14, 22, 0.84)';
-  roundRect(ctx, -CAR.length * 0.24, -CAR.width / 2 + 5, CAR.length * 0.48, CAR.width - 10, 6);
-  ctx.fill();
-
-  // Reverse white lights & brake lights
-  const isReversing = CAR.speed < -3;
-  ctx.fillStyle = isReversing ? '#ffffff' : '#ff3b3b';
-  ctx.fillRect(-CAR.length / 2, -CAR.width / 2 + 5, 3, 8);
-  ctx.fillRect(-CAR.length / 2, CAR.width / 2 - 13, 3, 8);
-
-  // Headlight LEDs
-  ctx.fillStyle = '#fff6ea';
-  ctx.fillRect(CAR.length / 2 - 3, -CAR.width / 2 + 5, 3, 8);
-  ctx.fillRect(CAR.length / 2 - 3, CAR.width / 2 - 13, 3, 8);
-
-  ctx.restore();
-}
-
-function roundRect(c, x, y, w, h, r) {
-  c.beginPath();
-  c.moveTo(x + r, y);
-  c.arcTo(x + w, y, x + w, y + h, r);
-  c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r);
-  c.arcTo(x, y, x + w, y, r);
-  c.closePath();
+  orbitControls.update();
+  renderer.render(scene, camera);
 }
 
 // ==========================================================================
@@ -2373,6 +2616,7 @@ viewBtns.forEach((btn) => {
     viewBtns.forEach((b) => b.classList.remove('on'));
     btn.classList.add('on');
     document.body.dataset.cam = btn.dataset.cam;
+    lastCamModeApplied = null;
     updateViewThumb();
   });
 });
@@ -2393,6 +2637,7 @@ const ambBtn = document.getElementById('ambBtn');
 function toggleAmbience() {
   const night = document.body.classList.toggle('amb-on');
   ambBtn.dataset.mode = night ? 'night' : 'day';
+  if (typeof syncThreeAmbience === 'function') syncThreeAmbience(night);
 }
 ambBtn.addEventListener('click', toggleAmbience);
 document.getElementById('menuAmbBtn').addEventListener('click', toggleAmbience);

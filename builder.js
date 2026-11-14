@@ -702,7 +702,7 @@ function rebuild3DEnvironmentMeshes() {
   }
 
   const countLabel = document.getElementById('obsCountLabel');
-  if (countLabel) countLabel.textContent = `${customEnv.obstacles.length} ITEM${customEnv.obstacles.length === 1 ? '' : 'S'}`;
+  if (countLabel) countLabel.textContent = String(customEnv.obstacles.length);
   syncInspectorUI();
 }
 
@@ -1275,6 +1275,11 @@ function setMode(nextMode) {
   document.getElementById('btnModeBuild')?.classList.toggle('on', nextMode === 'build');
   document.getElementById('btnModeDrive')?.classList.toggle('on', nextMode === 'drive');
 
+  const mobileFabText = document.getElementById('mobileModeFabText');
+  if (mobileFabText) {
+    mobileFabText.textContent = nextMode === 'build' ? '🚗 DRIVE' : '🛠 BUILD';
+  }
+
   resetDriveState();
   if (nextMode === 'build') {
     orbitControls.enabled = true;
@@ -1485,10 +1490,32 @@ const endBuilderDrag = () => {
 canvasEl.addEventListener('pointerup', endBuilderDrag);
 canvasEl.addEventListener('pointercancel', endBuilderDrag);
 
-// Add Obstacle Palette Buttons
+// Compact Minimize / Expand Drawer Logic
+const builderSidebarEl = document.getElementById('builderSidebar');
+const builderMinBtn = document.getElementById('builderMinBtn');
+const builderMinLabel = document.getElementById('builderMinLabel');
+
+function setBuilderMinimized(minimized) {
+  if (!builderSidebarEl) return;
+  builderSidebarEl.classList.toggle('is-minimized', minimized);
+  if (builderMinBtn) builderMinBtn.setAttribute('aria-expanded', String(!minimized));
+  if (builderMinLabel) builderMinLabel.textContent = minimized ? '▾ EXPAND' : '▴ MINIMIZE';
+}
+
+builderMinBtn?.addEventListener('click', () => {
+  const isMin = builderSidebarEl?.classList.contains('is-minimized');
+  setBuilderMinimized(!isMin);
+});
+
+if (window.innerWidth <= 760) {
+  setBuilderMinimized(true);
+}
+
+// Add Obstacle Palette Buttons (clicking small icon drops obstacle & expands Inspector)
 document.querySelectorAll('[data-add-obs]').forEach((btn) => {
   btn.addEventListener('click', () => {
     if (appMode !== 'build') setMode('build');
+    setBuilderMinimized(false);
     const kind = btn.dataset.addObs;
     const jitterX = Math.round((Math.random() - 0.5) * 90);
     const jitterY = Math.round((Math.random() - 0.5) * 90);
@@ -1511,16 +1538,19 @@ document.querySelectorAll('[data-add-obs]').forEach((btn) => {
     customEnv.obstacles.push(newObs);
     selectedRef = { kind: 'obstacle', id: newObs.id };
     rebuild3DEnvironmentMeshes();
-    setCoachCue(`Added ${spec.label} to the 3D lot — drag it into place or rotate it in the Inspector!`, 'neutral');
+    setBuilderMinimized(false);
+    setCoachCue(`Added ${spec.label} to the 3D lot — drag it into place or rotate below!`, 'neutral');
   });
 });
 
 document.getElementById('selectStartCarBtn')?.addEventListener('click', () => {
   selectedRef = { kind: 'start', id: null };
+  setBuilderMinimized(false);
   syncInspectorUI();
 });
 document.getElementById('selectTargetBayBtn')?.addEventListener('click', () => {
   selectedRef = { kind: 'target', id: null };
+  setBuilderMinimized(false);
   syncInspectorUI();
 });
 
@@ -1647,6 +1677,8 @@ const keys = { up: false, down: false, left: false, right: false, brake: false, 
 
 document.getElementById('btnModeBuild')?.addEventListener('click', () => setMode('build'));
 document.getElementById('btnModeDrive')?.addEventListener('click', () => setMode('drive'));
+document.getElementById('quickDriveToggleBtn')?.addEventListener('click', () => setMode('drive'));
+document.getElementById('mobileModeFab')?.addEventListener('click', () => setMode(appMode === 'build' ? 'drive' : 'build'));
 document.getElementById('startDriveCtaBtn')?.addEventListener('click', () => setMode('drive'));
 document.getElementById('shEditLotBtn')?.addEventListener('click', () => setMode('build'));
 document.getElementById('shReplayBtn')?.addEventListener('click', startReplay);
