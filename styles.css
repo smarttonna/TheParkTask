@@ -2124,4 +2124,455 @@ dialog.garuda-modal::backdrop {
   .mf-cols {
     column-count: 1;
   }
+
+  .chat-drawer {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 72vh;
+    border-radius: 22px 22px 0 0;
+    transform: translateY(104%);
+  }
+
+  .chat-drawer.open {
+    transform: translateY(0);
+  }
 }
+
+/* ==========================================================================
+   9. CLICK [P] TO PARK PULSE, REPLAY BADGE, COMMENTS CHATBOX & AUTH MODAL
+   ========================================================================== */
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@keyframes parkBtnPulse {
+  0%, 100% {
+    background: linear-gradient(145deg, #22c55e, #15803d);
+    color: #04130a;
+    border-color: #86efac;
+    box-shadow: 0 0 18px rgba(34, 197, 94, 0.85), inset 0 1px 2px rgba(255, 255, 255, 0.7);
+    transform: scale(1.08);
+  }
+  50% {
+    background: linear-gradient(145deg, #ffc570, #f59e0b);
+    color: #1c1004;
+    border-color: #fde68a;
+    box-shadow: 0 0 24px rgba(255, 197, 112, 0.95), inset 0 1px 2px rgba(255, 255, 255, 0.85);
+    transform: scale(1.16);
+  }
+}
+
+.gear-btn.ready-to-park {
+  animation: parkBtnPulse 0.85s ease-in-out infinite;
+  font-weight: 800;
+  z-index: 2;
+}
+
+.rn-round.replay-on {
+  border-color: #38bdf8;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.22);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+}
+
+.nav-pill-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 5px;
+  border-radius: 999px;
+  background: rgba(255, 197, 112, 0.22);
+  border: 1px solid rgba(255, 197, 112, 0.55);
+  color: var(--gold-bright);
+  font: 700 9.5px/1 "Geist Mono", monospace;
+}
+
+.auth-pill-btn.signed-in {
+  border-color: rgba(34, 197, 94, 0.65);
+  background: linear-gradient(160deg, rgba(34, 197, 94, 0.2), rgba(20, 83, 45, 0.35));
+}
+
+/* Comments Chatbox Drawer */
+.chat-drawer {
+  position: fixed;
+  top: calc(96px * var(--ui));
+  right: calc(24px * var(--ui));
+  width: min(390px, calc(100vw - 32px));
+  height: calc(100vh - 180px * var(--ui));
+  max-height: 640px;
+  z-index: 16;
+  border-radius: 22px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(165deg, rgba(24, 18, 20, 0.94), rgba(12, 10, 12, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  transform: translateX(calc(100% + 48px));
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.36s var(--ease), opacity 0.28s var(--ease);
+}
+
+.chat-drawer.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.chat-title {
+  margin: 0;
+  font: 600 17px/1.15 "Geist", sans-serif;
+  color: var(--ink);
+}
+
+.chat-identity-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.chat-id-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-badge {
+  padding: 3px 7px;
+  border-radius: 999px;
+  font: 700 8.5px/1 "Geist Mono", monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.chat-badge.guest {
+  background: rgba(255, 197, 112, 0.16);
+  color: var(--gold-bright);
+  border: 1px solid rgba(255, 197, 112, 0.45);
+}
+
+.chat-badge.member {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.5);
+}
+
+.chat-guest-input {
+  width: 100%;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 4px 8px;
+  color: var(--ink);
+  font: 500 11.5px/1.2 "Geist", sans-serif;
+}
+
+.chat-guest-input:focus {
+  outline: none;
+  border-color: var(--gold-bright);
+}
+
+.chat-signed-user {
+  font: 600 12px/1.2 "Geist", sans-serif;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-login-link {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  font-size: 9px;
+}
+
+.chat-filters {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-filters .gal-pill {
+  flex: 1;
+  height: 30px;
+  font-size: 9.5px;
+}
+
+.chat-feed {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.chat-msg {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.chat-msg-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.chat-author-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-author {
+  font: 600 12px/1.1 "Geist", sans-serif;
+  color: var(--ink);
+}
+
+.chat-stage-tag {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--gold-bright);
+  font: 600 9px/1 "Geist Mono", monospace;
+}
+
+.chat-time {
+  font: 500 9.5px/1 "Geist Mono", monospace;
+  color: var(--dim);
+}
+
+.chat-body {
+  margin: 0;
+  font: 400 12.5px/1.45 "Geist", sans-serif;
+  color: rgba(246, 250, 249, 0.92);
+  word-break: break-word;
+}
+
+.chat-msg-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.chat-like-btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--dim);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font: 600 10px/1.2 "Geist Mono", monospace;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.chat-like-btn:hover,
+.chat-like-btn.liked {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  background: rgba(255, 197, 112, 0.15);
+}
+
+.chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.chat-textarea {
+  width: 100%;
+  resize: none;
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--ink);
+  font: 400 12.5px/1.4 "Geist", sans-serif;
+}
+
+.chat-textarea:focus {
+  outline: none;
+  border-color: var(--gold-bright);
+}
+
+.chat-form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-hint {
+  font: 500 9.5px/1.2 "Geist Mono", monospace;
+  color: var(--dim);
+}
+
+.chat-hint b {
+  color: var(--gold-bright);
+}
+
+.chat-send-btn {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* Auth Modal & Setup Guide */
+.auth-modal-panel {
+  max-width: 680px;
+  width: calc(100vw - 32px);
+  height: auto;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.auth-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.auth-tab-panel[hidden],
+.auth-profile-card[hidden],
+.chat-signed-user[hidden],
+.chat-guest-input[hidden] {
+  display: none !important;
+}
+
+.auth-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.auth-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auth-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ffc570, #b45309);
+  color: #160d04;
+  display: grid;
+  place-items: center;
+  font: 800 16px/1 "Geist Mono", monospace;
+}
+
+.auth-profile-name {
+  margin: 2px 0;
+  font: 700 18px/1.1 "Geist", sans-serif;
+}
+
+.auth-profile-email {
+  margin: 0;
+  font: 500 11.5px/1.2 "Geist Mono", monospace;
+  color: var(--dim);
+}
+
+.auth-profile-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.auth-profile-stats span {
+  display: block;
+  font: 600 9px/1 "Geist Mono", monospace;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+
+.auth-profile-stats strong {
+  font: 700 14px/1.1 "Geist Mono", monospace;
+  color: var(--gold-bright);
+}
+
+.auth-field-hint {
+  display: block;
+  margin-top: 5px;
+  font: 400 10.5px/1.35 "Geist", sans-serif;
+  color: var(--dim);
+}
+
+.auth-steps-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font: 400 12.5px/1.5 "Geist", sans-serif;
+  color: rgba(246, 250, 249, 0.9);
+}
+
+.auth-steps-list ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auth-steps-list code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 197, 112, 0.14);
+  color: var(--gold-bright);
+  font: 500 11px/1 "Geist Mono", monospace;
+}
+

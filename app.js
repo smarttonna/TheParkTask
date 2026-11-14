@@ -879,6 +879,16 @@ let demoDone = false;
 let hitObsRef = null;
 let hitObsUntil = 0;
 
+// Drive Recording & Replay State (allows user to replay their drive & see mistakes)
+let driveHistory = [];
+let driveMistakes = [];
+let lastSavedDrive = null;
+let isReplaying = false;
+let replayTime = 0;
+let replayPlan = null;
+let lastReplaySampleAt = 0;
+let lastCloseCallAt = 0;
+
 function haptic(pattern) {
   if (navigator.vibrate) {
     try { navigator.vibrate(pattern); } catch {}
@@ -886,22 +896,44 @@ function haptic(pattern) {
 }
 
 function setActiveGear(gear, silent = false) {
-  if (activeGear === gear) return;
+  const prevGear = activeGear;
   activeGear = gear;
   document.querySelectorAll('.gear-btn').forEach((btn) => {
     const isMatch = btn.dataset.gear === gear;
     btn.classList.toggle('on', isMatch);
     btn.setAttribute('aria-checked', String(isMatch));
   });
-  if (!silent) {
+  if (gear === 'P') {
+    CAR.speed = 0;
+    document.getElementById('gearP')?.classList.remove('ready-to-park');
+  }
+  if (!silent && prevGear !== gear) {
     if (sfx.enabled) sfx.init();
     sfx.playGearShift();
     haptic(12);
+  }
+  // When user clicks [P] (or presses P) while in the target parking box, grade immediately!
+  if (gear === 'P' && !silent && !bayCleared && !autoDemo && !isReplaying) {
+    const bay = BAYS[currentBayIdx];
+    if (bay) {
+      checkParked(bay, 0.016, true);
+      if (!bayCleared && bayPosState === 'outside') {
+        setCoachCue('Drive into the parking box first, then click [P] PARK to grade.', 'warn');
+      }
+    }
   }
 }
 
 // Input state
 const keys = { up: false, down: false, left: false, right: false, brake: false, gas: false };
+
+function stopReplay(msg) {
+  if (!isReplaying) return;
+  isReplaying = false;
+  document.getElementById('replayBtn')?.classList.remove('replay-on');
+  document.getElementById('replayBtn')?.setAttribute('aria-pressed', 'false');
+  if (msg) setCoachCue(msg, 'neutral');
+}
 
 function loadBay(idx) {
   currentBayIdx = (idx + BAYS.length) % BAYS.length;
@@ -924,10 +956,31 @@ function loadBay(idx) {
   demoTime = 0;
   demoPlan = null;
   demoDone = false;
+  isReplaying = false;
+  replayTime = 0;
+  replayPlan = null;
+  driveHistory = [
+    {
+      t: 0,
+      x: bay.start.x,
+      y: bay.start.y,
+      angle: bay.start.angle,
+      steer: 0,
+      speed: 0,
+      gear: 'D',
+      clearance: 80
+    }
+  ];
+  driveMistakes = [];
+  lastReplaySampleAt = performance.now();
+  lastCloseCallAt = 0;
   hitObsRef = null;
   hitObsUntil = 0;
   document.getElementById('demoBtn')?.classList.remove('demo-on');
   document.getElementById('demoBtn')?.setAttribute('aria-pressed', 'false');
+  document.getElementById('replayBtn')?.classList.remove('replay-on');
+  document.getElementById('replayBtn')?.setAttribute('aria-pressed', 'false');
+  document.getElementById('gearP')?.classList.remove('ready-to-park');
   setActiveGear('D', true);
 
   document.body.classList.remove('is-detail', 'bay-passed');
@@ -937,6 +990,7 @@ function loadBay(idx) {
 
   analytics.trackAttempt(bay);
   updateDockUI();
+  if (typeof syncChatStageUI === 'function') syncChatStageUI();
 }
 
 function setCoachCue(text, state = 'neutral') {
@@ -1013,52 +1067,100 @@ function getCarClearance(carX, carY, carAngle, bay) {
   return { dist: minDist, obs: nearestObs };
 }
 
-// Check if car is cleanly parked inside target bay
-function checkParked(bay, dt) {
+// Check if car is inside target bay — requires clicking [P] PARK (or pressing P) before grading!
+function checkParked(bay, dt, forceParkClick = false) {
   const t = bay.target;
   const dx = CAR.x - t.x;
   const dy = CAR.y - t.y;
   const lx = dx * Math.cos(-t.angle) - dy * Math.sin(-t.angle);
   const ly = dx * Math.sin(-t.angle) + dy * Math.cos(-t.angle);
 
-  const angleDiff = Math.abs(Math.atan2(Math.sin(CAR.angle - t.angle), Math.cos(CAR.angle - t.angle)));
-  const aligned = angleDiff < 0.18 || Math.abs(angleDiff - Math.PI) < 0.18;
+  const rawAngleDiff = Math.abs(Math.atan2(Math.sin(CAR.angle - t.angle), Math.cos(CAR.angle - t.angle)));
+  const angleDiff = Math.min(rawAngleDiff, Math.abs(rawAngleDiff - Math.PI));
+  const aligned = angleDiff < 0.18;
   const centered = Math.abs(lx) < (t.h - CAR.length) / 2 + 10 && Math.abs(ly) < (t.w - CAR.width) / 2 + 7;
   const insideRoughly = Math.abs(lx) < t.h / 2 + 12 && Math.abs(ly) < t.w / 2 + 10;
   const stopped = Math.abs(CAR.speed) < 14;
+  const gearPBtn = document.getElementById('gearP');
 
   if (aligned && centered) {
     bayPosState = 'aligned';
-    if (stopped) {
-      holdTimer += dt;
-      setCoachCue('Box is GREEN! Hold still to pass stage…', 'ok');
-      if (holdTimer > 0.45 && !bayCleared) {
-        completeBay(bay, angleDiff, Math.hypot(lx, ly));
-      }
+    if (!bayCleared) gearPBtn?.classList.add('ready-to-park');
+    if ((forceParkClick || activeGear === 'P') && stopped && !bayCleared) {
+      gearPBtn?.classList.remove('ready-to-park');
+      completeBay(bay, angleDiff, Math.hypot(lx, ly));
     } else {
       holdTimer = 0;
-      setCoachCue('Box is GREEN! Hold BRAKE or shift to P to pass.', 'ok');
+      setCoachCue('✓ Box is GREEN! Click [P] PARK (or press P) to lock brakes & grade your park.', 'ok');
     }
   } else if (insideRoughly) {
     bayPosState = 'partial';
-    holdTimer = 0;
-    setCoachCue(
-      aligned ? 'Almost there — center the car inside the bay box.' : 'Inside the bay — straighten steering to align with the lines.',
-      'neutral'
-    );
+    if (!bayCleared) gearPBtn?.classList.add('ready-to-park');
+    if ((forceParkClick || activeGear === 'P') && stopped && !bayCleared) {
+      gearPBtn?.classList.remove('ready-to-park');
+      const degOff = Math.round(angleDiff * 57.3);
+      const cmOff = Math.round(Math.hypot(lx, ly) * 4.5);
+      driveMistakes.push({
+        t: (performance.now() - startTime) / 1000,
+        x: CAR.x,
+        y: CAR.y,
+        type: 'ALIGNMENT',
+        label: `Parked Off-Center (${degOff}°, ${cmOff}cm)`,
+        fix: `Mistake: Parked ${degOff}° crooked / ${cmOff}cm off-center. Correction: Straighten wheel to 0° and center inside the green box before clicking [P].`
+      });
+      completeBay(bay, angleDiff, Math.hypot(lx, ly));
+    } else {
+      holdTimer = 0;
+      setCoachCue(
+        aligned
+          ? 'Inside bay — pull centered until box turns GREEN, then click [P] PARK to grade.'
+          : 'Inside bay — straighten steering to align with lines, then click [P] PARK to grade.',
+        'neutral'
+      );
+    }
   } else {
     bayPosState = 'outside';
     holdTimer = 0;
+    gearPBtn?.classList.remove('ready-to-park');
   }
+}
+
+function saveCurrentDriveSnapshot() {
+  if (driveHistory.length < 2) return;
+  const lastSample = driveHistory[driveHistory.length - 1];
+  lastSavedDrive = {
+    bayIdx: currentBayIdx,
+    bayId: BAYS[currentBayIdx]?.id || '001',
+    samples: driveHistory.map((s) => ({ ...s })),
+    mistakes: driveMistakes.map((m) => ({ ...m })),
+    totalTime: Math.max(0.5, lastSample.t)
+  };
 }
 
 function completeBay(bay, angleDiff, offsetPx) {
   bayCleared = true;
   bayPosState = 'passed';
+  document.getElementById('gearP')?.classList.remove('ready-to-park');
+
+  // Record final parked sample for Replay
+  const finalRelT = Math.max(0.2, (performance.now() - startTime) / 1000);
+  driveHistory.push({
+    t: finalRelT,
+    x: CAR.x,
+    y: CAR.y,
+    angle: CAR.angle,
+    steer: CAR.steer,
+    speed: 0,
+    gear: 'P',
+    clearance: getCarClearance(CAR.x, CAR.y, CAR.angle, bay).dist
+  });
+  saveCurrentDriveSnapshot();
+
   clearedBays.add(bay.id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...clearedBays]));
+  if (typeof syncAuthUI === 'function') syncAuthUI();
 
-  const stars = collisions === 0 && reversals <= 3 ? 3 : collisions <= 1 ? 2 : 1;
+  const stars = collisions === 0 && reversals <= 3 && angleDiff < 0.18 ? 3 : collisions <= 1 ? 2 : 1;
   const clearTimeSec = Math.round((performance.now() - startTime) / 100) / 10;
   const prev = stageRatings[bay.id];
   stageRatings[bay.id] = {
@@ -1069,14 +1171,14 @@ function completeBay(bay, angleDiff, offsetPx) {
 
   document.body.classList.add('bay-passed');
   const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
-  document.getElementById('passSignTitle').textContent = `${starStr} · STAGE ${bay.id} CLEARED`;
+  document.getElementById('passSignTitle').textContent = `${starStr} · STAGE ${bay.id} GRADED`;
   sfx.playSuccess();
   haptic([25, 35, 55]);
   updateDockUI();
   renderStagesModal();
 
   const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(1);
-  const alignPct = Math.max(60, Math.round(100 - angleDiff * 140 - offsetPx * 0.6));
+  const alignPct = Math.max(55, Math.round(100 - angleDiff * 140 - offsetPx * 0.6));
   const penalty = collisions * 12;
   const finalScore = Math.max(45, Math.min(100, alignPct - penalty));
   const grade = finalScore >= 94 ? 'A+' : finalScore >= 86 ? 'A' : finalScore >= 75 ? 'B' : 'C';
@@ -1115,16 +1217,16 @@ function completeBay(bay, angleDiff, offsetPx) {
 
   document.getElementById('shSummary').textContent = `${collisions} COLLISIONS · ${reversals} SHUNTS · GRADE ${grade}`;
   document.getElementById('shDebrief').textContent =
-    collisions === 0
-      ? 'Clean entry with zero curb or bumper contact. Your rear-axle pivot timing kept the front swing safely clear.'
-      : `Completed with ${collisions} light contact(s). Slow down to walking pace when the ultrasonic radar chimes rapidly.`;
+    collisions === 0 && driveMistakes.length === 0
+      ? 'Clean entry with zero curb or bumper contact. Click "REPLAY MY DRIVE" below to review your exact trajectory.'
+      : `Recorded ${driveMistakes.length} mistake(s) / close call(s). Click "REPLAY MY DRIVE" below to see your exact mistake points and how to correct them!`;
   document.getElementById('shTip').innerHTML = `<b>${bay.tip.split(':')[0]}:</b>${bay.tip.split(':').slice(1).join(':')}`;
 
   document.body.classList.add('is-detail');
 }
 
 // ==========================================================================
-// 6. PHYSICS UPDATE LOOP (Ackermann Rear-Axle Pivot)
+// 6. PHYSICS UPDATE LOOP, AUTO-DEMO & USER DRIVE REPLAY
 // ==========================================================================
 let lastTime = performance.now();
 
@@ -1135,6 +1237,123 @@ function stopAutoDemo(msg) {
   document.getElementById('demoBtn')?.classList.remove('demo-on');
   document.getElementById('demoBtn')?.setAttribute('aria-pressed', 'false');
   if (msg) setCoachCue(msg, 'ok');
+}
+
+function startReplay() {
+  if (isReplaying) {
+    stopReplay('Replay stopped — you have manual control.');
+    return;
+  }
+  if (autoDemo) stopAutoDemo();
+
+  // Save latest ongoing drive samples if user clicks Replay mid-drive
+  if (driveHistory.length >= 2) {
+    saveCurrentDriveSnapshot();
+  }
+
+  const bay = BAYS[currentBayIdx];
+  let source =
+    lastSavedDrive && lastSavedDrive.bayIdx === currentBayIdx && lastSavedDrive.samples.length >= 2
+      ? lastSavedDrive
+      : null;
+
+  if (!source) {
+    // If user clicks Replay before driving far, create an instant diagnostic preview from current pose
+    const nowClear = getCarClearance(CAR.x, CAR.y, CAR.angle, bay).dist;
+    source = {
+      bayIdx: currentBayIdx,
+      bayId: bay.id,
+      samples: [
+        { t: 0, x: bay.start.x, y: bay.start.y, angle: bay.start.angle, steer: 0, speed: 0, gear: 'D', clearance: nowClear },
+        { t: 1.2, x: CAR.x, y: CAR.y, angle: CAR.angle, steer: CAR.steer, speed: 0, gear: activeGear, clearance: nowClear }
+      ],
+      mistakes: [...driveMistakes],
+      totalTime: 1.2
+    };
+  }
+
+  // Normalize timestamps so stationary pauses don't make replay sluggish
+  const normSamples = [];
+  let accumT = 0;
+  for (let i = 0; i < source.samples.length; i++) {
+    const s = source.samples[i];
+    if (i > 0) {
+      const prev = source.samples[i - 1];
+      const dtRaw = Math.max(0.02, Math.min(0.25, s.t - prev.t));
+      accumT += dtRaw;
+    }
+    normSamples.push({ ...s, t: accumT });
+  }
+
+  const idealPlan = buildDemoTrajectory(bay);
+  replayPlan = {
+    samples: normSamples,
+    mistakes: source.mistakes || [],
+    idealSamples: idealPlan.samples || [],
+    totalTime: Math.max(0.8, accumT)
+  };
+
+  // Hide telemetry sheet so canvas replay is fully visible
+  document.body.classList.remove('is-detail', 'bay-passed');
+  bayCleared = false;
+  isReplaying = true;
+  replayTime = 0;
+  document.getElementById('replayBtn')?.classList.add('replay-on');
+  document.getElementById('replayBtn')?.setAttribute('aria-pressed', 'true');
+
+  const mistakeCount = replayPlan.mistakes.length;
+  setCoachCue(
+    mistakeCount > 0
+      ? `REPLAYING YOUR DRIVE · Reviewing ${mistakeCount} mistake(s) vs. Ideal Green Line…`
+      : 'REPLAYING YOUR DRIVE · Clean run! Comparing your path against the Ideal Reference Line…',
+    mistakeCount > 0 ? 'warn' : 'ok'
+  );
+}
+
+function stepReplay(dt, bay) {
+  if (!replayPlan || !replayPlan.samples.length) {
+    stopReplay();
+    return;
+  }
+  replayTime += dt;
+  const list = replayPlan.samples;
+  if (replayTime >= replayPlan.totalTime) {
+    const last = list[list.length - 1];
+    CAR.x = last.x;
+    CAR.y = last.y;
+    CAR.angle = last.angle;
+    CAR.steer = last.steer || 0;
+    CAR.speed = 0;
+    setActiveGear(last.gear || 'P', true);
+    const mCount = replayPlan.mistakes.length;
+    const summaryMsg =
+      mCount > 0
+        ? `REPLAY COMPLETE · ${mCount} mistake(s) highlighted on lot: ${replayPlan.mistakes[mCount - 1].fix}`
+        : 'REPLAY COMPLETE · Zero collisions or close calls! Click [P] inside box to grade or (↺) to retry.';
+    stopReplay(summaryMsg);
+    return;
+  }
+
+  let idx = 0;
+  while (idx < list.length - 2 && list[idx + 1].t < replayTime) idx++;
+  const a = list[idx];
+  const b = list[idx + 1] || a;
+  const span = Math.max(0.0001, b.t - a.t);
+  const u = Math.max(0, Math.min(1, (replayTime - a.t) / span));
+
+  CAR.x = a.x + (b.x - a.x) * u;
+  CAR.y = a.y + (b.y - a.y) * u;
+  const dAng = Math.atan2(Math.sin(b.angle - a.angle), Math.cos(b.angle - a.angle));
+  CAR.angle = a.angle + dAng * u;
+  CAR.steer = (a.steer || 0) + ((b.steer || 0) - (a.steer || 0)) * u;
+  CAR.speed = (a.speed || 0) + ((b.speed || 0) - (a.speed || 0)) * u;
+  setActiveGear(b.gear || 'D', true);
+
+  // Check if replay is passing near a recorded mistake to show live correction tip
+  const activeMistake = replayPlan.mistakes.find((m) => Math.hypot(CAR.x - m.x, CAR.y - m.y) < 36);
+  if (activeMistake) {
+    setCoachCue(`⚠ ${activeMistake.fix}`, 'warn');
+  }
 }
 
 function buildDemoTrajectory(bay) {
@@ -1323,6 +1542,18 @@ function updatePhysics(dt) {
 
   const bay = BAYS[currentBayIdx];
 
+  if (isReplaying) {
+    stepReplay(dt, bay);
+    syncStickVisual();
+    const { dist: clearance } = getCarClearance(CAR.x, CAR.y, CAR.angle, bay);
+    const kmh = Math.round(Math.abs(CAR.speed) * 0.12);
+    const steerDeg = Math.round((CAR.steer * 180) / Math.PI);
+    const radarCm = clearance === Infinity ? 'CLEAR' : `${Math.max(0, Math.round(clearance * 4.5))} CM`;
+    document.getElementById('dockTelemetry').textContent =
+      `REPLAY · GEAR: ${activeGear} · ${kmh} KM/H · STEER: ${steerDeg > 0 ? '+' : ''}${steerDeg}° · RADAR: ${radarCm}`;
+    return;
+  }
+
   if (autoDemo) {
     stepAutoDemo(dt, bay);
     syncStickVisual();
@@ -1405,6 +1636,8 @@ function updatePhysics(dt) {
   CAR.y += Math.sin(CAR.angle) * CAR.speed * dt;
 
   const { dist: clearance, obs: hitObs } = getCarClearance(CAR.x, CAR.y, CAR.angle, bay);
+  const nowPerf = performance.now();
+  const relT = (nowPerf - startTime) / 1000;
 
   if (clearance <= 0.5) {
     // Solid obstacle stop: walls, curbs, pillars, cones, and parked cars block the car
@@ -1413,17 +1646,68 @@ function updatePhysics(dt) {
     CAR.angle = prevAngle;
     CAR.speed = 0;
     hitObsRef = hitObs;
-    hitObsUntil = performance.now() + 550;
-    if (performance.now() - lastCollisionBump > 550) {
+    hitObsUntil = nowPerf + 550;
+    if (nowPerf - lastCollisionBump > 550) {
       collisions++;
-      lastCollisionBump = performance.now();
+      lastCollisionBump = nowPerf;
       sfx.playBump();
       haptic([28, 18, 28]);
       const obsName = hitObs?.type === 'wall' ? 'Wall' : hitObs?.type === 'curb' ? 'Curb' : hitObs?.type === 'pillar' ? 'Pillar' : hitObs?.type === 'cone' ? 'Cone' : 'Parked car';
       analytics.trackCollision(bay, obsName);
-      setCoachCue(`${obsName} blocked you! Shift opposite gear & steer clear.`, 'warn');
+      driveMistakes.push({
+        t: relT,
+        x: CAR.x,
+        y: CAR.y,
+        type: 'COLLISION',
+        label: `Hit ${obsName}`,
+        fix: `Mistake: Hit ${obsName} in ${activeGear}. Correction: Stop when the guide line turns RED, shift to ${activeGear === 'R' ? 'D' : 'R'}, and counter-steer.`
+      });
+      driveHistory.push({
+        t: relT,
+        x: CAR.x,
+        y: CAR.y,
+        angle: CAR.angle,
+        steer: CAR.steer,
+        speed: 0,
+        gear: activeGear,
+        clearance: 0
+      });
+      saveCurrentDriveSnapshot();
+      setCoachCue(`${obsName} blocked you! Shift opposite gear & steer clear (or tap ↺ Replay to review).`, 'warn');
     }
   } else {
+    // Record user's manual trajectory samples for Replay
+    if (Math.abs(CAR.speed) > 3 && nowPerf - lastReplaySampleAt > 55) {
+      lastReplaySampleAt = nowPerf;
+      driveHistory.push({
+        t: relT,
+        x: CAR.x,
+        y: CAR.y,
+        angle: CAR.angle,
+        steer: CAR.steer,
+        speed: CAR.speed,
+        gear: activeGear,
+        clearance
+      });
+      if (driveHistory.length > 900) driveHistory.shift();
+      saveCurrentDriveSnapshot();
+    }
+
+    // Record close-call warning if user drives into the RED (< 14 px) danger zone at speed
+    if (clearance < 14 && Math.abs(CAR.speed) > 10 && nowPerf - lastCloseCallAt > 2000) {
+      lastCloseCallAt = nowPerf;
+      const cm = Math.max(1, Math.round(clearance * 4.5));
+      driveMistakes.push({
+        t: relT,
+        x: CAR.x,
+        y: CAR.y,
+        type: 'TOO_CLOSE',
+        label: `Danger Zone (${cm}cm)`,
+        fix: `Close Call: Passed ${cm}cm from obstacle (Red Guide). Correction: Begin your turn earlier while the guide is Orange.`
+      });
+      saveCurrentDriveSnapshot();
+    }
+
     sfx.updateRadar(clearance, CAR.speed < -4);
     if (!autoDemo && !demoDone) {
       checkParked(bay, dt);
@@ -1467,6 +1751,103 @@ function resizeCanvas() {
   updateViewThumb();
 }
 window.addEventListener('resize', resizeCanvas);
+
+function getProximityLightInfo(clearancePx) {
+  if (clearancePx < 16) {
+    return {
+      level: 'red',
+      hex: '#ef4444',
+      rgba: 'rgba(239, 68, 68, 0.88)',
+      glow: 'rgba(239, 68, 68, 0.55)',
+      label: 'RED · TOO CLOSE!'
+    };
+  }
+  if (clearancePx < 42) {
+    return {
+      level: 'orange',
+      hex: '#f97316',
+      rgba: 'rgba(249, 115, 22, 0.86)',
+      glow: 'rgba(249, 115, 22, 0.45)',
+      label: 'ORANGE · GETTING CLOSER'
+    };
+  }
+  return {
+    level: 'green',
+    hex: '#22c55e',
+    rgba: 'rgba(34, 197, 94, 0.84)',
+    glow: 'rgba(34, 197, 94, 0.42)',
+    label: 'GREEN · SAFE'
+  };
+}
+
+function drawReplayOverlay() {
+  if (!replayPlan) return;
+  ctx.save();
+
+  // 1. Draw Ideal Reference Path (dashed cyan/emerald line) so player sees how to correct
+  if (replayPlan.idealSamples && replayPlan.idealSamples.length > 1) {
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.68)';
+    ctx.beginPath();
+    replayPlan.idealSamples.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 2. Draw Player's Recorded Trail color-coded by Green / Orange / Red obstacle clearance
+  const pts = replayPlan.samples;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const info = getProximityLightInfo(b.clearance ?? 60);
+    ctx.strokeStyle = info.hex;
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+
+  // 3. Draw Mistake Markers (Collisions, Close Calls & Alignment Offsets)
+  (replayPlan.mistakes || []).forEach((m, idx) => {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ef4444';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '700 9.5px "Geist Mono", monospace';
+    const tag = `⚠ #${idx + 1} ${m.label.toUpperCase()}`;
+    const tw = ctx.measureText(tag).width + 12;
+    ctx.fillStyle = 'rgba(18, 8, 10, 0.92)';
+    roundRect(ctx, -tw / 2, -28, tw, 16, 5);
+    ctx.fill();
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#fca5a5';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tag, 0, -20);
+    ctx.restore();
+  });
+
+  ctx.restore();
+}
 
 function drawScene() {
   const w = canvas.width;
@@ -1537,18 +1918,18 @@ function drawScene() {
   ctx.setLineDash([]);
   ctx.shadowBlur = 0;
 
-  // Hold-to-lock progress bar along bay edge when aligned
-  if (bayPosState === 'aligned' && !bayCleared && holdTimer > 0) {
-    const pct = Math.min(1, holdTimer / 0.45);
-    ctx.fillStyle = '#4ade80';
-    ctx.fillRect(-t.h / 2, -t.w / 2 - 7, t.h * pct, 4);
-  }
-
   ctx.fillStyle = isGreen ? '#4ade80' : isPartial ? '#ffa92c' : 'rgba(255, 197, 112, 0.72)';
   ctx.font = '700 10.5px "Geist Mono", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(bayCleared ? '✓ PASSED' : `PARK · ${bay.id} ▸`, 0, 0);
+  const bayLabelText = bayCleared
+    ? '✓ GRADED'
+    : isGreen
+      ? 'CLICK [P] TO PARK'
+      : isPartial
+        ? 'ALIGN & CLICK [P]'
+        : `PARK · ${bay.id} ▸`;
+  ctx.fillText(bayLabelText, 0, 0);
   ctx.restore();
 
   // Obstacles (Curbs, Pillars, Cones, Parked Cars)
@@ -1601,18 +1982,25 @@ function drawScene() {
     ctx.restore();
   }
 
-  // Ackermann Predicted Trajectory Arcs (when GUIDE is ON)
+  // Draw Replay Overlay (recorded user trail + mistake callouts + ideal path) when replaying
+  if (isReplaying || replayPlan) {
+    drawReplayOverlay();
+  }
+
+  // Ackermann Predicted Trajectory Arcs with Green / Orange / Red Proximity Lights
   if (showGuides) {
     drawTrajectoryGuides();
   }
 
-  // Player Garuda Car
+  // Player Tonna Car
   drawPlayerCar(isNight);
 
   ctx.restore();
 }
 
 function drawTrajectoryGuides() {
+  const bay = BAYS[currentBayIdx];
+
   // Draw Instructor Demo Reference Path & Pivot Markers when demo is active or completed
   if ((autoDemo || demoDone) && demoPlan && demoPlan.samples.length) {
     ctx.save();
@@ -1647,19 +2035,27 @@ function drawTrajectoryGuides() {
   let sy = CAR.y;
   let sa = CAR.angle;
 
-  ctx.save();
-  ctx.strokeStyle = dir < 0 ? 'rgba(255, 197, 112, 0.78)' : 'rgba(246, 250, 249, 0.48)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([5, 5]);
+  const liveClearance = getCarClearance(CAR.x, CAR.y, CAR.angle, bay).dist;
+  let worstClearance = liveClearance;
 
-  // Left & Right tire paths + backup-camera distance crossbars
+  // Left & Right tire paths + per-step obstacle clearance for Green / Orange / Red light coloring
   const leftPts = [];
   const rightPts = [];
+  const stepLights = [];
+
   for (let i = 0; i < steps; i++) {
     const w = (simSpeed / CAR.wheelbase) * Math.tan(CAR.steer);
     sa += w * stepDt;
     sx += Math.cos(sa) * simSpeed * stepDt;
     sy += Math.sin(sa) * simSpeed * stepDt;
+
+    const stepClearance = getCarClearance(sx, sy, sa, bay).dist;
+    // Weight near-field trajectory steps into overall guide light state
+    if (i < 12 && stepClearance < worstClearance) {
+      worstClearance = stepClearance;
+    }
+    const light = getProximityLightInfo(Math.min(liveClearance, stepClearance));
+    stepLights.push(light);
 
     const rearOff = dir < 0 ? -CAR.length / 2 : CAR.length / 2;
     const rx = sx + Math.cos(sa) * rearOff;
@@ -1670,33 +2066,105 @@ function drawTrajectoryGuides() {
     rightPts.push({ x: rx - nx, y: ry - ny });
   }
 
+  const activeLight = getProximityLightInfo(worstClearance);
+
+  ctx.save();
+  ctx.lineWidth = 2.6;
+  ctx.setLineDash([6, 4]);
+
+  // Draw per-segment colored left and right guide rails (Green = Safe, Orange = Getting Closer, Red = Too Close)
   [leftPts, rightPts].forEach((pts) => {
-    ctx.beginPath();
-    pts.forEach((p, idx) => (idx === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-    ctx.stroke();
+    for (let i = 1; i < pts.length; i++) {
+      ctx.strokeStyle = stepLights[i].rgba;
+      ctx.beginPath();
+      ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+      ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
   });
 
-  // Distance zone crossbars (like a real backup camera)
+  // Distance zone crossbars & glowing LED proximity light beacons along the guide rails
   ctx.setLineDash([]);
-  ctx.lineWidth = 1.5;
-  [6, 13, 20].forEach((idx, z) => {
+  ctx.lineWidth = 1.6;
+  [4, 9, 14, 19].forEach((idx) => {
     const l = leftPts[idx];
     const r = rightPts[idx];
-    if (!l || !r) return;
-    ctx.strokeStyle = dir < 0 && z === 0 ? 'rgba(255, 90, 90, 0.72)' : 'rgba(255, 197, 112, 0.35)';
+    const light = stepLights[idx];
+    if (!l || !r || !light) return;
+
+    ctx.strokeStyle = light.rgba;
     ctx.beginPath();
     ctx.moveTo(l.x, l.y);
     ctx.lineTo(r.x, r.y);
     ctx.stroke();
+
+    // Glowing LED light nodes on both rails
+    [l, r].forEach((pt) => {
+      ctx.save();
+      ctx.shadowColor = light.hex;
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = light.hex;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 3.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
   });
+
+  // 3-Light Traffic Indicator Pill at the tip of the guide line (Green / Orange / Red)
+  const tipL = leftPts[leftPts.length - 1];
+  const tipR = rightPts[rightPts.length - 1];
+  if (tipL && tipR) {
+    const mx = (tipL.x + tipR.x) / 2;
+    const my = (tipL.y + tipR.y) / 2;
+    ctx.save();
+    ctx.font = '700 8.5px "Geist Mono", monospace';
+    const textW = ctx.measureText(activeLight.label).width;
+    const pillW = textW + 46;
+    const pillH = 18;
+
+    ctx.fillStyle = 'rgba(12, 10, 12, 0.88)';
+    roundRect(ctx, mx - pillW / 2, my - pillH / 2, pillW, pillH, 9);
+    ctx.fill();
+    ctx.strokeStyle = activeLight.hex;
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+
+    // Draw 3 mini LED bulbs (Green, Orange, Red) inside the pill
+    const lightsOrder = [
+      { id: 'green', hex: '#22c55e' },
+      { id: 'orange', hex: '#f97316' },
+      { id: 'red', hex: '#ef4444' }
+    ];
+    lightsOrder.forEach((bulb, bIdx) => {
+      const bx = mx - pillW / 2 + 10 + bIdx * 10;
+      const isLit = activeLight.level === bulb.id;
+      ctx.save();
+      if (isLit) {
+        ctx.shadowColor = bulb.hex;
+        ctx.shadowBlur = 8;
+      }
+      ctx.fillStyle = isLit ? bulb.hex : 'rgba(255, 255, 255, 0.18)';
+      ctx.beginPath();
+      ctx.arc(bx, my, isLit ? 3.6 : 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    ctx.fillStyle = activeLight.hex;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(activeLight.label, mx - pillW / 2 + 38, my + 0.5);
+    ctx.restore();
+  }
 
   // Rear-axle pivot crosshair
   const px = CAR.x - Math.cos(CAR.angle) * (CAR.wheelbase / 2);
   const py = CAR.y - Math.sin(CAR.angle) * (CAR.wheelbase / 2);
   ctx.setLineDash([]);
-  ctx.fillStyle = '#ffa92c';
+  ctx.fillStyle = activeLight.hex;
   ctx.beginPath();
-  ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+  ctx.arc(px, py, 3.8, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -1949,6 +2417,8 @@ document.getElementById('resetBtnLink').addEventListener('click', (e) => {
   loadBay(currentBayIdx);
 });
 document.getElementById('demoBtn')?.addEventListener('click', startAutoDemo);
+document.getElementById('replayBtn')?.addEventListener('click', startReplay);
+document.getElementById('shReplayBtn')?.addEventListener('click', startReplay);
 document.getElementById('resetHudBtn').addEventListener('click', () => loadBay(currentBayIdx));
 document.getElementById('menuRestartBtn').addEventListener('click', () => {
   document.body.classList.remove('menu-open');
@@ -1970,17 +2440,22 @@ menuBtn.addEventListener('click', () => {
   menuBtn.setAttribute('aria-expanded', String(open));
 });
 
-// Keyboard Controls
+// Keyboard Controls (ignores keystrokes while typing in chatbox or form inputs)
 window.addEventListener('keydown', (e) => {
-  if (document.querySelector('dialog[open]')) return;
+  const activeTag = document.activeElement?.tagName;
+  if (document.querySelector('dialog[open]') || activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
+    return;
+  }
   const k = e.key.toLowerCase();
   if (['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
     if (autoDemo) stopAutoDemo('Manual override — you have control.');
+    if (isReplaying) stopReplay('Manual override — you have control.');
   }
   if (k === 'w' || e.key === 'ArrowUp') { keys.up = true; setActiveGear('D', true); e.preventDefault(); }
   if (k === 's' || e.key === 'ArrowDown') { keys.down = true; setActiveGear('R', true); e.preventDefault(); }
   if (k === 'a' || e.key === 'ArrowLeft') { keys.left = true; e.preventDefault(); }
   if (k === 'd' || e.key === 'ArrowRight') { keys.right = true; e.preventDefault(); }
+  if (k === 'p') { setActiveGear('P', false); e.preventDefault(); }
   if (e.code === 'Space') { keys.brake = true; e.preventDefault(); }
   if (k === 'r') loadBay(currentBayIdx);
 });
@@ -2333,6 +2808,576 @@ document.getElementById('btnExportAnalytics')?.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
+// ==========================================================================
+// 9. USER LOGIN + GUEST PLAY & COMMUNITY COMMENTS CHATBOX (100% VERCEL READY)
+// ==========================================================================
+const USERS_DB_KEY = 'theparktask_users_v1';
+const USER_SESSION_KEY = 'theparktask_user_session_v1';
+const GUEST_NAME_KEY = 'theparktask_guest_name_v1';
+const COMMENTS_DB_KEY = 'theparktask_comments_v1';
+const LIKED_COMMENTS_KEY = 'theparktask_liked_comments_v1';
+const FIREBASE_CFG_KEY = 'theparktask_firebase_cfg_v1';
+
+const communityChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('theparktask_community_v1') : null;
+
+const SEED_COMMENTS = [
+  {
+    id: 'seed-1',
+    author: 'Coach Tonna',
+    role: 'member',
+    stageId: '001',
+    text: 'Welcome! Remember: once your car is aligned inside the green box, click [P] PARK (or press P) to lock the brakes and get your grade!',
+    likes: 14,
+    ts: 'Pinned Tip'
+  },
+  {
+    id: 'seed-2',
+    author: 'Maya R.',
+    role: 'member',
+    stageId: '001',
+    text: 'The new Green / Orange / Red guide lights make reverse bay parking so much clearer. As soon as it turns Orange I start straightening the wheel.',
+    likes: 8,
+    ts: '12m ago'
+  },
+  {
+    id: 'seed-3',
+    author: 'Guest_Drifter',
+    role: 'guest',
+    stageId: '002',
+    text: 'Playing as a guest right now! The Replay button (↺) showed me I was turning full-lock too late on the 45° diagonal bay.',
+    likes: 6,
+    ts: '8m ago'
+  },
+  {
+    id: 'seed-4',
+    author: 'Devon K.',
+    role: 'member',
+    stageId: '003',
+    text: 'For Stage 003 parallel curb: reverse until the rear axle dot hits the first pivot marker, then counter-steer full left.',
+    likes: 11,
+    ts: '5m ago'
+  },
+  {
+    id: 'seed-5',
+    author: 'Guest_Amaka',
+    role: 'guest',
+    stageId: '004',
+    text: 'Love that guests can play and drop tips in the chatbox without being forced to register first!',
+    likes: 5,
+    ts: '2m ago'
+  },
+  {
+    id: 'seed-6',
+    author: 'Seyi A.',
+    role: 'member',
+    stageId: '005',
+    text: 'On S-Bend stages, keep speed under 8 km/h and watch the Red guide light near the cones.',
+    likes: 9,
+    ts: 'Just now'
+  }
+];
+
+function loadUsersDB() {
+  try {
+    return JSON.parse(localStorage.getItem(USERS_DB_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveUsersDB(db) {
+  localStorage.setItem(USERS_DB_KEY, JSON.stringify(db));
+}
+
+function getCurrentUser() {
+  try {
+    const raw = localStorage.getItem(USER_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCurrentUser(userObj) {
+  if (userObj) {
+    localStorage.setItem(USER_SESSION_KEY, JSON.stringify(userObj));
+  } else {
+    localStorage.removeItem(USER_SESSION_KEY);
+  }
+  syncAuthUI();
+}
+
+function getGuestNickname() {
+  return (localStorage.getItem(GUEST_NAME_KEY) || 'Guest Driver').trim() || 'Guest Driver';
+}
+
+function setGuestNickname(name) {
+  const clean = (name || '').trim().slice(0, 24) || 'Guest Driver';
+  localStorage.setItem(GUEST_NAME_KEY, clean);
+  const input = document.getElementById('chatGuestNameInput');
+  if (input && input.value !== clean) input.value = clean;
+}
+
+function syncAuthUI() {
+  const user = getCurrentUser();
+  const guestName = getGuestNickname();
+  const hasFirebaseCfg = Boolean(localStorage.getItem(FIREBASE_CFG_KEY));
+
+  // Top nav button
+  const authBtn = document.getElementById('userAuthBtn');
+  const authLabel = document.getElementById('userAuthLabel');
+  if (authBtn && authLabel) {
+    authBtn.classList.toggle('signed-in', Boolean(user));
+    authLabel.textContent = user ? `✓ ${user.name.toUpperCase()}` : '👤 GUEST · SIGN IN';
+  }
+
+  // Chatbox identity bar
+  const badge = document.getElementById('chatIdentityBadge');
+  const guestInput = document.getElementById('chatGuestNameInput');
+  const signedText = document.getElementById('chatSignedUserText');
+  const openAuthBtn = document.getElementById('chatOpenAuthBtn');
+  if (badge && guestInput && signedText && openAuthBtn) {
+    if (user) {
+      badge.textContent = 'MEMBER';
+      badge.className = 'chat-badge member';
+      guestInput.hidden = true;
+      signedText.hidden = false;
+      signedText.textContent = `${user.name} (${user.email})`;
+      openAuthBtn.textContent = 'ACCOUNT';
+    } else {
+      badge.textContent = 'GUEST';
+      badge.className = 'chat-badge guest';
+      guestInput.hidden = false;
+      if (document.activeElement !== guestInput) guestInput.value = guestName;
+      signedText.hidden = true;
+      openAuthBtn.textContent = 'SIGN IN';
+    }
+  }
+
+  // Auth modal profile card
+  const profileCard = document.getElementById('authProfileView');
+  if (profileCard) {
+    if (user) {
+      profileCard.hidden = false;
+      const initials = user.name
+        .split(/\s+/)
+        .map((p) => p[0] || '')
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) || 'DR';
+      document.getElementById('authAvatarInitials').textContent = initials;
+      document.getElementById('authProfileName').textContent = user.name;
+      document.getElementById('authProfileEmail').textContent = user.email;
+      document.getElementById('authStatClears').textContent = `${clearedBays.size} / ${BAYS.length}`;
+      document.getElementById('authStatProvider').textContent = hasFirebaseCfg ? 'Firebase Cloud + Local' : 'Built-In WebCrypto Auth';
+    } else {
+      profileCard.hidden = true;
+    }
+  }
+}
+
+// Auth Modal Tab Switching
+const authTabs = [
+  { btnId: 'authTabSignIn', panelId: 'authPanelSignIn', key: 'signin' },
+  { btnId: 'authTabSignUp', panelId: 'authPanelSignUp', key: 'signup' },
+  { btnId: 'authTabSetup', panelId: 'authPanelSetup', key: 'setup' }
+];
+
+function switchAuthTab(targetKey) {
+  authTabs.forEach((t) => {
+    const btn = document.getElementById(t.btnId);
+    const panel = document.getElementById(t.panelId);
+    const active = t.key === targetKey;
+    if (btn) {
+      btn.classList.toggle('on', active);
+      btn.setAttribute('aria-selected', String(active));
+    }
+    if (panel) panel.hidden = !active;
+  });
+}
+
+authTabs.forEach((t) => {
+  document.getElementById(t.btnId)?.addEventListener('click', () => switchAuthTab(t.key));
+});
+
+document.getElementById('menuAuthBtn')?.addEventListener('click', () => {
+  document.body.classList.remove('menu-open');
+  document.getElementById('menuBtn')?.setAttribute('aria-expanded', 'false');
+  syncAuthUI();
+});
+
+document.getElementById('userAuthBtn')?.addEventListener('click', syncAuthUI);
+
+// Show / Hide Password in Sign-In Form
+const signInPwInput = document.getElementById('current-password');
+const toggleSignInPwBtn = document.getElementById('toggleSignInPwBtn');
+toggleSignInPwBtn?.addEventListener('click', () => {
+  if (!signInPwInput) return;
+  const showing = signInPwInput.type === 'text';
+  signInPwInput.type = showing ? 'password' : 'text';
+  toggleSignInPwBtn.setAttribute('aria-pressed', String(!showing));
+  toggleSignInPwBtn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  toggleSignInPwBtn.textContent = showing ? 'SHOW' : 'HIDE';
+});
+
+// Continue as Guest button
+document.getElementById('continueGuestBtn')?.addEventListener('click', () => {
+  setCurrentUser(null);
+  document.getElementById('authModal')?.close();
+  setCoachCue(`Playing as ${getGuestNickname()} — Guests can play all 108 stages & post in Comments!`, 'ok');
+});
+
+// Sign Out button
+document.getElementById('authSignOutBtn')?.addEventListener('click', () => {
+  setCurrentUser(null);
+  const status = document.getElementById('signInStatus');
+  if (status) {
+    status.style.color = '#ffc570';
+    status.textContent = 'Signed out — now playing & commenting in Guest mode.';
+  }
+});
+
+// Create Account Form Submit (autofill-sign-up-form compliant)
+document.getElementById('signUpForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nameEl = document.getElementById('signup-name');
+  const emailEl = document.getElementById('signup-email');
+  const pwEl = document.getElementById('new-password');
+  const statusEl = document.getElementById('signUpStatus');
+  if (!nameEl || !emailEl || !pwEl || !statusEl) return;
+
+  const name = nameEl.value.trim();
+  const email = emailEl.value.trim().toLowerCase();
+  const pw = pwEl.value;
+
+  if (!name || !email || pw.length < 6) {
+    statusEl.style.color = '#ff7b7b';
+    statusEl.textContent = 'Please provide your name, email, and a password of at least 6 characters.';
+    return;
+  }
+
+  const users = loadUsersDB();
+  const pwHash = await sha256Hex(`${email}::${pw}`);
+  users[email] = {
+    name,
+    email,
+    pwHash,
+    createdAt: new Date().toISOString(),
+    clearedBays: [...clearedBays]
+  };
+  saveUsersDB(users);
+
+  setCurrentUser({ name, email });
+  nameEl.value = '';
+  emailEl.value = '';
+  pwEl.value = '';
+  statusEl.style.color = '#4ade80';
+  statusEl.textContent = `✓ Account created! Welcome, ${name}.`;
+  setCoachCue(`✓ Signed in as ${name}! Your stage clears & comments are now linked to your account.`, 'ok');
+});
+
+// Sign In Form Submit (autofill-sign-in-form compliant)
+document.getElementById('signInForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const emailEl = document.getElementById('signin-email');
+  const pwEl = document.getElementById('current-password');
+  const statusEl = document.getElementById('signInStatus');
+  if (!emailEl || !pwEl || !statusEl) return;
+
+  const email = emailEl.value.trim().toLowerCase();
+  const pw = pwEl.value;
+  const users = loadUsersDB();
+  const record = users[email];
+  const candidateHash = await sha256Hex(`${email}::${pw}`);
+
+  if (!record) {
+    // Friendly onboarding: if account doesn't exist yet, guide or auto-provision if valid
+    statusEl.style.color = '#ff7b7b';
+    statusEl.textContent = 'No account found for that email yet — switch to CREATE ACCOUNT tab to register in 5 seconds!';
+    return;
+  }
+
+  if (record.pwHash !== candidateHash) {
+    statusEl.style.color = '#ff7b7b';
+    statusEl.textContent = 'Invalid password for this email address.';
+    pwEl.select();
+    return;
+  }
+
+  // Merge any stages saved on the user's account
+  if (Array.isArray(record.clearedBays)) {
+    record.clearedBays.forEach((id) => clearedBays.add(id));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...clearedBays]));
+    updateDockUI();
+    renderStagesModal();
+  }
+
+  setCurrentUser({ name: record.name, email: record.email });
+  pwEl.value = '';
+  statusEl.style.color = '#4ade80';
+  statusEl.textContent = `✓ Welcome back, ${record.name}!`;
+  setCoachCue(`✓ Welcome back, ${record.name}!`, 'ok');
+});
+
+// Optional Firebase Cloud Config Form in Setup Guide Tab
+const fbCfgInput = document.getElementById('firebaseConfigInput');
+const fbCfgStatus = document.getElementById('firebaseConfigStatus');
+if (fbCfgInput) {
+  const existingCfg = localStorage.getItem(FIREBASE_CFG_KEY);
+  if (existingCfg) fbCfgInput.value = existingCfg;
+}
+
+document.getElementById('firebaseConfigForm')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!fbCfgInput || !fbCfgStatus) return;
+  const raw = fbCfgInput.value.trim();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed.apiKey || !parsed.projectId) {
+      throw new Error('Missing apiKey or projectId');
+    }
+    localStorage.setItem(FIREBASE_CFG_KEY, JSON.stringify(parsed, null, 2));
+    fbCfgStatus.style.color = '#4ade80';
+    fbCfgStatus.textContent = `✓ Firebase config saved for project "${parsed.projectId}".`;
+    syncAuthUI();
+  } catch {
+    fbCfgStatus.style.color = '#ff7b7b';
+    fbCfgStatus.textContent = 'Please paste a valid JSON object containing at least "apiKey" and "projectId".';
+  }
+});
+
+document.getElementById('clearFirebaseConfigBtn')?.addEventListener('click', () => {
+  localStorage.removeItem(FIREBASE_CFG_KEY);
+  if (fbCfgInput) fbCfgInput.value = '';
+  if (fbCfgStatus) {
+    fbCfgStatus.style.color = '#ffc570';
+    fbCfgStatus.textContent = 'Using Built-In Instant Local & Cross-Tab Auth Mode.';
+  }
+  syncAuthUI();
+});
+
+// ==========================================================================
+// 10. COMMENTS CHATBOX DRAWER (GUESTS & LOGGED-IN USERS)
+// ==========================================================================
+let activeChatFilter = 'all'; // 'all' | 'stage'
+
+function loadComments() {
+  try {
+    const raw = localStorage.getItem(COMMENTS_DB_KEY);
+    if (!raw) {
+      localStorage.setItem(COMMENTS_DB_KEY, JSON.stringify(SEED_COMMENTS));
+      return [...SEED_COMMENTS];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : [...SEED_COMMENTS];
+  } catch {
+    return [...SEED_COMMENTS];
+  }
+}
+
+function saveComments(list) {
+  localStorage.setItem(COMMENTS_DB_KEY, JSON.stringify(list.slice(0, 120)));
+}
+
+function loadLikedSet() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(LIKED_COMMENTS_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLikedSet(setObj) {
+  localStorage.setItem(LIKED_COMMENTS_KEY, JSON.stringify([...setObj]));
+}
+
+function escapeHtmlText(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function syncChatStageUI() {
+  const bay = BAYS[currentBayIdx];
+  if (!bay) return;
+  const codeEl = document.getElementById('chatStageCode');
+  const postStageEl = document.getElementById('chatPostingStage');
+  if (codeEl) codeEl.textContent = bay.id;
+  if (postStageEl) postStageEl.textContent = `Stage ${bay.id}`;
+  renderChatComments();
+}
+
+function renderChatComments() {
+  const feedEl = document.getElementById('chatFeed');
+  const badgeEl = document.getElementById('chatCountBadge');
+  if (!feedEl) return;
+
+  const allComments = loadComments();
+  if (badgeEl) badgeEl.textContent = String(allComments.length);
+
+  const currentStageId = BAYS[currentBayIdx]?.id || '001';
+  const filtered =
+    activeChatFilter === 'stage'
+      ? allComments.filter((c) => c.stageId === currentStageId)
+      : allComments;
+
+  const likedSet = loadLikedSet();
+
+  if (!filtered.length) {
+    feedEl.innerHTML = `
+      <div class="chat-msg">
+        <p class="chat-body" style="color:var(--dim)">No comments on Stage ${currentStageId} yet. Be the first to share a tip as a Guest or Member!</p>
+      </div>
+    `;
+    return;
+  }
+
+  feedEl.innerHTML = filtered
+    .map((c) => {
+      const isLiked = likedSet.has(c.id);
+      const roleClass = c.role === 'member' ? 'member' : 'guest';
+      const roleLabel = c.role === 'member' ? 'MEMBER' : 'GUEST';
+      return `
+        <article class="chat-msg" data-comment-id="${escapeHtmlText(c.id)}">
+          <div class="chat-msg-top">
+            <div class="chat-author-wrap">
+              <span class="chat-badge ${roleClass}">${roleLabel}</span>
+              <strong class="chat-author">${escapeHtmlText(c.author)}</strong>
+              <span class="chat-stage-tag">STAGE ${escapeHtmlText(c.stageId || '001')}</span>
+            </div>
+            <span class="chat-time">${escapeHtmlText(c.ts || 'Just now')}</span>
+          </div>
+          <p class="chat-body">${escapeHtmlText(c.text)}</p>
+          <div class="chat-msg-foot">
+            <button type="button" class="chat-like-btn${isLiked ? ' liked' : ''}" data-like-id="${escapeHtmlText(c.id)}" aria-label="Like comment">
+              ♥ ${Number(c.likes || 0)}
+            </button>
+          </div>
+        </article>
+      `;
+    })
+    .join('');
+
+  feedEl.querySelectorAll('.chat-like-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cid = btn.dataset.likeId;
+      const list = loadComments();
+      const liked = loadLikedSet();
+      const item = list.find((x) => x.id === cid);
+      if (!item) return;
+      if (liked.has(cid)) {
+        liked.delete(cid);
+        item.likes = Math.max(0, (item.likes || 1) - 1);
+      } else {
+        liked.add(cid);
+        item.likes = (item.likes || 0) + 1;
+      }
+      saveLikedSet(liked);
+      saveComments(list);
+      renderChatComments();
+      communityChannel?.postMessage({ type: 'comments_updated' });
+    });
+  });
+}
+
+function toggleChatDrawer(forceState) {
+  const drawer = document.getElementById('chatDrawer');
+  const toggleBtn = document.getElementById('chatToggleBtn');
+  if (!drawer) return;
+  const isOpen = typeof forceState === 'boolean' ? forceState : !drawer.classList.contains('open');
+  drawer.classList.toggle('open', isOpen);
+  drawer.setAttribute('aria-hidden', String(!isOpen));
+  toggleBtn?.classList.toggle('active', isOpen);
+  toggleBtn?.setAttribute('aria-expanded', String(isOpen));
+  if (isOpen) {
+    syncAuthUI();
+    syncChatStageUI();
+    setTimeout(() => document.getElementById('chatInput')?.focus(), 60);
+  }
+}
+
+document.getElementById('chatToggleBtn')?.addEventListener('click', () => toggleChatDrawer());
+document.getElementById('chatCloseBtn')?.addEventListener('click', () => toggleChatDrawer(false));
+document.getElementById('menuChatBtn')?.addEventListener('click', () => {
+  document.body.classList.remove('menu-open');
+  document.getElementById('menuBtn')?.setAttribute('aria-expanded', 'false');
+  toggleChatDrawer(true);
+});
+
+document.getElementById('chatGuestNameInput')?.addEventListener('change', (e) => {
+  setGuestNickname(e.target.value);
+});
+
+document.getElementById('chatFilterAll')?.addEventListener('click', () => {
+  activeChatFilter = 'all';
+  document.getElementById('chatFilterAll')?.classList.add('on');
+  document.getElementById('chatFilterStage')?.classList.remove('on');
+  renderChatComments();
+});
+
+document.getElementById('chatFilterStage')?.addEventListener('click', () => {
+  activeChatFilter = 'stage';
+  document.getElementById('chatFilterStage')?.classList.add('on');
+  document.getElementById('chatFilterAll')?.classList.remove('on');
+  renderChatComments();
+});
+
+// IME-safe Enter-to-Submit on Chatbox Textarea (per modern-web-guidance ime-safe-enter-submit)
+const chatFormEl = document.getElementById('chatForm');
+const chatInputEl = document.getElementById('chatInput');
+
+chatInputEl?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    if (event.isComposing || event.keyCode === 229) {
+      return;
+    }
+    chatFormEl?.requestSubmit();
+  }
+});
+
+chatFormEl?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!chatInputEl) return;
+  const text = chatInputEl.value.trim();
+  if (!text) return;
+
+  const user = getCurrentUser();
+  const guestInputEl = document.getElementById('chatGuestNameInput');
+  if (!user && guestInputEl?.value) {
+    setGuestNickname(guestInputEl.value);
+  }
+  const author = user ? user.name : getGuestNickname();
+  const role = user ? 'member' : 'guest';
+  const stageId = BAYS[currentBayIdx]?.id || '001';
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const newComment = {
+    id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    author,
+    role,
+    stageId,
+    text,
+    likes: 0,
+    ts: nowStr
+  };
+
+  const list = loadComments();
+  list.unshift(newComment);
+  saveComments(list);
+  chatInputEl.value = '';
+  renderChatComments();
+  communityChannel?.postMessage({ type: 'comments_updated' });
+});
+
+communityChannel?.addEventListener('message', (ev) => {
+  if (ev.data?.type === 'comments_updated') {
+    renderChatComments();
+  }
+});
+
 // Fallback for browsers without native <dialog closedby="any"> support
 if (!('closedBy' in HTMLDialogElement.prototype)) {
   document.querySelectorAll('dialog[closedby="any"]').forEach((dialog) => {
@@ -2363,4 +3408,6 @@ buildDock();
 loadBay(0);
 resizeCanvas();
 syncAdminGateUI();
+syncAuthUI();
+renderChatComments();
 requestAnimationFrame(loop);
