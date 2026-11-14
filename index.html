@@ -96,6 +96,10 @@
         <span class="mn-num">04</span>
         <span class="mn-t">Bay Telemetry Sheet</span>
       </button>
+      <button type="button" class="mn-go" style="--i:5" id="menuAnalyticsBtn" commandfor="analyticsModal" command="show-modal">
+        <span class="mn-num">05</span>
+        <span class="mn-t">Visitor &amp; Player Analytics</span>
+      </button>
     </div>
 
     <div class="mn-rule" style="--i:4"></div>
@@ -352,6 +356,60 @@
       </div>
       <div class="stage-cats" id="stageCats"></div>
       <div class="gal-grid" id="stagesGrid"></div>
+    </div>
+  </dialog>
+
+  <!-- ====================================================================
+       8. VISITOR & GAMEPLAY ANALYTICS MODAL
+       ==================================================================== -->
+  <dialog id="analyticsModal" class="garuda-modal" closedby="any" aria-labelledby="analyticsTitle">
+    <div class="gal-panel glass-panel an-panel">
+      <div class="gal-head">
+        <div>
+          <p class="mn-k" style="color:var(--gold-bright);margin-bottom:4px" id="anSourceTag">LIVE TELEMETRY &amp; VISITOR INSIGHTS</p>
+          <h2 id="analyticsTitle" class="gal-title">Player &amp; Visitor Analytics</h2>
+        </div>
+        <div class="gal-controls">
+          <button type="button" class="mn-chip" id="btnExportAnalytics">EXPORT JSON</button>
+          <button type="button" class="rn-round" commandfor="analyticsModal" command="close" aria-label="Close analytics">✕</button>
+        </div>
+      </div>
+
+      <div class="an-grid-kpis">
+        <div class="an-kpi"><span class="an-k">TOTAL VISITS</span><strong id="anVisits">1</strong></div>
+        <div class="an-kpi"><span class="an-k">UNIQUE PLAYERS</span><strong id="anVisitors">1</strong></div>
+        <div class="an-kpi"><span class="an-k">PLAY TIME</span><strong id="anPlayTime">0m 0s</strong></div>
+        <div class="an-kpi"><span class="an-k">STAGES CLEARED</span><strong id="anClears">0</strong></div>
+        <div class="an-kpi"><span class="an-k">STAGE ATTEMPTS</span><strong id="anAttempts">0</strong></div>
+        <div class="an-kpi"><span class="an-k">DEMOS WATCHED</span><strong id="anDemos">0</strong></div>
+        <div class="an-kpi"><span class="an-k">COLLISIONS</span><strong id="anCollisions">0</strong></div>
+        <div class="an-kpi"><span class="an-k">AVG PRECISION</span><strong id="anAvgScore">—</strong></div>
+      </div>
+
+      <div class="an-body-split">
+        <div class="an-card">
+          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">STAGE BREAKDOWN (MOST PLAYED)</p>
+          <div class="an-table-wrap">
+            <table class="an-table">
+              <thead>
+                <tr>
+                  <th>STAGE</th>
+                  <th>SCENARIO</th>
+                  <th>TRIES</th>
+                  <th>CLEARS</th>
+                  <th>BUMPS</th>
+                  <th>BEST</th>
+                </tr>
+              </thead>
+              <tbody id="anStageTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="an-card">
+          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">RECENT PLAYER ACTIVITY</p>
+          <div class="an-feed" id="anEventLog"></div>
+        </div>
+      </div>
     </div>
   </dialog>
 

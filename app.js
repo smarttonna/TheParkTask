@@ -413,12 +413,16 @@ function buildAllStages() {
   REAL_LIFE_CHAPTERS.forEach((chapter, cIdx) => {
     chapter.events.forEach(([name, surname, context], eIdx) => {
       const id = String(num).padStart(3, '0');
-      // Difficulty tightens progressively from 0 to 1
       const diff = (num - 1) / 107;
-      const tight = Math.round(diff * 8); // up to 8px tighter bay
+      const tight = Math.round(diff * 6);
       const colorA = carColors[(num + 1) % carColors.length];
       const colorB = carColors[(num + 4) % carColors.length];
-      const pattern = (cIdx + eIdx) % 6;
+
+      // 12 distinct parking archetypes × 4 spatial mirror/flip variations + lateral shift
+      const pattern = (num - 1) % 12;
+      const flipY = num >= 4 && num % 2 === 0 ? -1 : 1;
+      const flipX = num >= 4 && Math.floor((num - 1) / 3) % 2 === 1 ? -1 : 1;
+      const shiftX = ((num * 7) % 5 - 2) * 10;
 
       let stage = {
         id,
@@ -431,119 +435,242 @@ function buildAllStages() {
       };
 
       if (pattern === 0) {
-        // 90° Reverse Bay between two cars
-        const bayX = 30 + ((eIdx % 3) - 1) * 28;
-        stage.start = { x: -205, y: 120, angle: 0 };
+        // 0: 90° Reverse Bay Between Two Cars
+        const bayX = 20;
+        stage.start = { x: -200, y: 115, angle: 0 };
         stage.target = { x: bayX, y: -66, angle: -Math.PI / 2, w: 68 - tight, h: 120 - tight };
-        stage.coachCue = `${name} ${surname}: Pull past the slot, then full-lock LEFT in Reverse.`;
+        stage.coachCue = `${name} ${surname}: Pull past the 90° bay in D, then reverse full-lock into the slot.`;
         stage.tip = `COACH TIP (${context}): Pivot around your rear axle as soon as your rear bumper passes the adjacent vehicle.`;
         stage.obstacles = [
-          { x: 0, y: -140, w: 460, h: 20, type: 'curb' },
-          { x: bayX - (76 - tight / 2), y: -66, w: 50, h: 102, type: 'car', color: colorA },
-          { x: bayX + (76 - tight / 2), y: -66, w: 50, h: 102, type: 'car', color: colorB },
-          { x: -235, y: -66, w: 50, h: 102, type: 'car', color: '#2b303a' }
+          { x: 0, y: -142, w: 500, h: 20, type: 'curb' },
+          { x: bayX - (80 - tight / 2), y: -66, w: 48, h: 98, type: 'car', color: colorA },
+          { x: bayX + (80 - tight / 2), y: -66, w: 48, h: 98, type: 'car', color: colorB },
+          { x: -225, y: -66, w: 48, h: 98, type: 'car', color: '#2b303a' }
         ];
-        stage.demoWaypoints = [
-          { x: bayX + 96, y: 122, gear: 'D' },
-          { x: bayX + 12, y: 24, gear: 'R' },
-          { x: bayX, y: -10, gear: 'R' },
-          { x: bayX, y: -66, gear: 'R' }
+        stage.demoSegments = [
+          { to: { x: bayX + 88, y: 108, angle: 0.18 }, gear: 'D', cue: 'DEMO [1/2] · Shift D: Pull forward past the bay to the pivot point…' },
+          { to: { x: bayX, y: 14, angle: -Math.PI / 2 }, leadStraight: { x: bayX, y: -66, angle: -Math.PI / 2 }, gear: 'R', cue: 'DEMO [2/2] · Shift R: Turn wheel to lock, then straighten to 0° inside the bay.' }
         ];
       } else if (pattern === 1) {
-        // Tight Parallel Curb
-        const gap = 144 - tight * 1.2;
-        stage.start = { x: 125, y: -12, angle: 0 };
+        // 1: Curbside Parallel Pocket
+        const gap = 144 - tight;
+        stage.start = { x: 125, y: -8, angle: 0 };
         stage.target = { x: 0, y: -76, angle: 0, w: 58 - Math.round(tight / 2), h: 126 - tight };
-        stage.coachCue = `${name} ${surname}: Parallel park between the 2 cars — shift R, steer into slot, then straighten.`;
+        stage.coachCue = `${name} ${surname}: Parallel park between the 2 cars — shift R, S-curve into slot, then straighten.`;
         stage.tip = `COACH TIP (${context}): Wait until your front bumper clears the lead car before counter-steering.`;
         stage.obstacles = [
           { x: 0, y: -132, w: 520, h: 24, type: 'curb' },
-          { x: -gap, y: -76, w: 102, h: 48, type: 'car', color: colorA },
-          { x: gap, y: -76, w: 102, h: 48, type: 'car', color: colorB }
+          { x: -gap, y: -76, w: 100, h: 48, type: 'car', color: colorA },
+          { x: gap, y: -76, w: 100, h: 48, type: 'car', color: colorB }
         ];
-        stage.demoWaypoints = [
-          { x: 76, y: -32, gear: 'R' },
-          { x: -24, y: -76, gear: 'R' },
-          { x: 0, y: -76, gear: 'D' }
+        stage.demoSegments = [
+          { to: { x: -16, y: -76, angle: 0 }, gear: 'R', cue: 'DEMO [1/2] · Shift R: S-curve reverse smoothly into the parallel curb pocket…' },
+          { to: { x: 0, y: -76, angle: 0 }, gear: 'D', cue: 'DEMO [2/2] · Shift D: Pull forward to center cleanly between both cars.' }
         ];
       } else if (pattern === 2) {
-        // 90° Blind Corner / Pillar Alley
-        stage.start = { x: -185, y: 125, angle: 0 };
-        stage.target = { x: 130, y: -56, angle: -Math.PI / 2, w: 66 - Math.round(tight / 2), h: 118 - tight };
-        stage.coachCue = `${name} ${surname}: Park in the corner bay on the right — clear the pillar before turning.`;
+        // 2: 90° Blind Pillar Corner Alley
+        stage.start = { x: -185, y: 122, angle: 0 };
+        stage.target = { x: 132, y: -56, angle: -Math.PI / 2, w: 66 - Math.round(tight / 2), h: 118 - tight };
+        stage.coachCue = `${name} ${surname}: Swing past the concrete pillar in D, then reverse straight into the corner bay.`;
         stage.tip = `COACH TIP (${context}): Turning too early around a pillar clips the rear quarter panel.`;
         stage.obstacles = [
-          { x: 130, y: -136, w: 190, h: 22, type: 'wall' },
-          { x: 206, y: -35, w: 26, h: 220, type: 'wall' },
-          { x: 35 + Math.round(tight / 2), y: -35, w: 46, h: 108, type: 'pillar' },
-          { x: -110, y: 190, w: 540, h: 22, type: 'curb' }
+          { x: 132, y: -138, w: 190, h: 22, type: 'wall' },
+          { x: 212, y: -35, w: 24, h: 220, type: 'wall' },
+          { x: 30 + Math.round(tight / 2), y: -44, w: 44, h: 96, type: 'pillar' },
+          { x: -80, y: 190, w: 540, h: 22, type: 'curb' }
         ];
-        stage.demoWaypoints = [
-          { x: 132, y: 112, gear: 'D' },
-          { x: 130, y: 18, gear: 'R' },
-          { x: 130, y: -56, gear: 'R' }
+        stage.demoSegments = [
+          { to: { x: 132, y: 78, angle: -Math.PI / 2 }, gear: 'D', cue: 'DEMO [1/2] · Shift D: Drive past the pillar and align with the corner alley…' },
+          { to: { x: 132, y: -12, angle: -Math.PI / 2 }, leadStraight: { x: 132, y: -56, angle: -Math.PI / 2 }, gear: 'R', cue: 'DEMO [2/2] · Shift R: Reverse straight into the corner bay.' }
         ];
       } else if (pattern === 3) {
-        // 45° Angled Diagonal Reverse
+        // 3: 45° Angled Diagonal Reverse
         stage.start = { x: -195, y: 105, angle: 0 };
-        stage.target = { x: 45, y: -62, angle: -Math.PI / 4, w: 68 - tight, h: 120 - tight };
-        stage.coachCue = `${name} ${surname}: Reverse into the 45° angled bay between the parked cars.`;
+        stage.target = { x: 45, y: -62, angle: Math.PI / 4, w: 68 - tight, h: 120 - tight };
+        stage.coachCue = `${name} ${surname}: Pull forward past the 45° slot, then reverse smoothly at an angle.`;
         stage.tip = `COACH TIP (${context}): Diagonal slots need smooth 18–22° lock rather than full lock.`;
         stage.obstacles = [
-          { x: 0, y: -146, w: 460, h: 20, type: 'curb' },
-          { x: -45 + Math.round(tight / 2), y: -62, w: 50, h: 100, angle: -Math.PI / 4, type: 'car', color: colorA },
-          { x: 135 - Math.round(tight / 2), y: -62, w: 50, h: 100, angle: -Math.PI / 4, type: 'car', color: colorB },
-          { x: 0, y: 176, w: 460, h: 20, type: 'curb' }
+          { x: 0, y: -148, w: 480, h: 20, type: 'curb' },
+          { x: -62 + Math.round(tight / 2), y: -62, w: 96, h: 46, angle: Math.PI / 4, type: 'car', color: colorA },
+          { x: 152 - Math.round(tight / 2), y: -62, w: 96, h: 46, angle: Math.PI / 4, type: 'car', color: colorB },
+          { x: 0, y: 176, w: 480, h: 20, type: 'curb' }
         ];
-        stage.demoWaypoints = [
-          { x: 130, y: 88, gear: 'D' },
-          { x: 78, y: -28, gear: 'R' },
-          { x: 45, y: -62, gear: 'R' }
+        stage.demoSegments = [
+          { to: { x: 152, y: 78, angle: 0.32 }, gear: 'D', cue: 'DEMO [1/2] · Shift D: Pull past the 45° diagonal bay…' },
+          { to: { x: 75, y: -32, angle: Math.PI / 4 }, leadStraight: { x: 45, y: -62, angle: Math.PI / 4 }, gear: 'R', cue: 'DEMO [2/2] · Shift R: Half-lock steer into the 45° diagonal slot.' }
         ];
       } else if (pattern === 4) {
-        // S-Curve Cone/Bollard Reverse Chicane
-        const shift = (eIdx % 2 === 0 ? 1 : -1) * 14;
-        stage.start = { x: -240, y: 80, angle: Math.PI };
+        // 4: S-Curve Cone Chicane Back-In
+        stage.start = { x: -230, y: 70, angle: Math.PI };
         stage.target = { x: 205, y: -45, angle: Math.PI, w: 66 - Math.round(tight / 2), h: 120 - tight };
-        stage.coachCue = `${name} ${surname}: Shift to R and weave through the cones to the end bay.`;
+        stage.coachCue = `${name} ${surname}: Shift to R and weave through the two cone gates into the end bay.`;
         stage.tip = `COACH TIP (${context}): Keep speed under 10 km/h when threading tight bollards in reverse.`;
         stage.obstacles = [
-          { x: -60, y: -55 + shift, r: 14, type: 'cone' },
-          { x: -60, y: 65 + shift, r: 14, type: 'cone' },
-          { x: 75, y: -120 - shift, r: 14, type: 'cone' },
-          { x: 75, y: 0 - shift, r: 14, type: 'cone' },
-          { x: 292 + 12, y: -45, w: 22, h: 180, type: 'wall' },
-          { x: 0, y: -156, w: 620, h: 20, type: 'curb' },
-          { x: 0, y: 166, w: 620, h: 20, type: 'curb' }
+          { x: -60, y: -52, r: 13, type: 'cone' },
+          { x: -60, y: 82, r: 13, type: 'cone' },
+          { x: 75, y: -118, r: 13, type: 'cone' },
+          { x: 75, y: 16, r: 13, type: 'cone' },
+          { x: 304, y: -45, w: 22, h: 180, type: 'wall' },
+          { x: 0, y: -158, w: 620, h: 20, type: 'curb' },
+          { x: 0, y: 168, w: 620, h: 20, type: 'curb' }
         ];
-        stage.demoWaypoints = [
-          { x: -145, y: 42, gear: 'R' },
-          { x: -55, y: 12 + shift, gear: 'R' },
-          { x: 15, y: -25, gear: 'R' },
-          { x: 82, y: -62 - shift, gear: 'R' },
-          { x: 148, y: -62 - Math.round(shift * 0.4), gear: 'R' },
-          { x: 205, y: -45, gear: 'R' }
+        stage.demoSegments = [
+          { to: { x: -55, y: 16, angle: Math.PI - 0.36 }, gear: 'R', cue: 'DEMO [1/2] · Shift R: Guide rear axle through the first cone gate…' },
+          { to: { x: 148, y: -45, angle: Math.PI }, leadStraight: { x: 205, y: -45, angle: Math.PI }, gear: 'R', cue: 'DEMO [2/2] · Shift R: Counter-steer through second gate and straighten into bay.' }
         ];
-      } else {
-        // Dual Concrete Pillar Garage Squeeze
+      } else if (pattern === 5) {
+        // 5: Twin-Pillar Garage Squeeze
         stage.start = { x: -200, y: 120, angle: 0 };
         stage.target = { x: 10, y: -68, angle: -Math.PI / 2, w: 66 - tight, h: 118 - tight };
-        stage.coachCue = `${name} ${surname}: Thread between the concrete columns—watch front bumper swing!`;
-        stage.tip = `COACH TIP (${context}): If you enter off-center, pull forward 0.5m to straighten—smart drivers adjust!`;
+        stage.coachCue = `${name} ${surname}: Thread between the twin concrete columns — watch front bumper swing!`;
+        stage.tip = `COACH TIP (${context}): Align straight with the column gap before backing into the garage bay.`;
         stage.obstacles = [
-          { x: 0, y: -142, w: 500, h: 22, type: 'wall' },
-          { x: -60 + Math.round(tight / 2), y: -35, w: 34, h: 52, type: 'pillar' },
-          { x: 80 - Math.round(tight / 2), y: -35, w: 34, h: 52, type: 'pillar' },
-          { x: -138, y: -68, w: 48, h: 98, type: 'car', color: colorA },
-          { x: 158, y: -68, w: 48, h: 98, type: 'car', color: colorB },
+          { x: 0, y: -144, w: 500, h: 22, type: 'wall' },
+          { x: -64 + Math.round(tight / 2), y: -32, w: 32, h: 48, type: 'pillar' },
+          { x: 84 - Math.round(tight / 2), y: -32, w: 32, h: 48, type: 'pillar' },
+          { x: -144, y: -68, w: 48, h: 98, type: 'car', color: colorA },
+          { x: 164, y: -68, w: 48, h: 98, type: 'car', color: colorB },
           { x: 0, y: 186, w: 500, h: 22, type: 'curb' }
         ];
-        stage.demoWaypoints = [
-          { x: 28, y: 108, gear: 'D' },
-          { x: 10, y: 18, gear: 'R' },
-          { x: 10, y: -68, gear: 'R' }
+        stage.demoSegments = [
+          { to: { x: 96, y: 112, angle: 0.18 }, gear: 'D', cue: 'DEMO [1/2] · Shift D: Pull past the twin garage columns…' },
+          { to: { x: 10, y: 14, angle: -Math.PI / 2 }, leadStraight: { x: 10, y: -68, angle: -Math.PI / 2 }, gear: 'R', cue: 'DEMO [2/2] · Shift R: Line up straight between the pillars and back in.' }
+        ];
+      } else if (pattern === 6) {
+        // 6: Forward 90° Swing-In Bay
+        stage.start = { x: -205, y: 96, angle: 0 };
+        stage.target = { x: 35, y: -64, angle: -Math.PI / 2, w: 68 - tight, h: 120 - tight };
+        stage.coachCue = `${name} ${surname}: Swing wide in D and turn 90° forward directly into the bay.`;
+        stage.tip = `COACH TIP (${context}): When pulling forward into a 90° bay, swing wide first so your rear inside wheel clears the corner car.`;
+        stage.obstacles = [
+          { x: 0, y: -142, w: 500, h: 20, type: 'curb' },
+          { x: 35 - (80 - tight / 2), y: -64, w: 48, h: 98, type: 'car', color: colorA },
+          { x: 35 + (80 - tight / 2), y: -64, w: 48, h: 98, type: 'car', color: colorB },
+          { x: -40, y: 175, w: 480, h: 20, type: 'curb' }
+        ];
+        stage.demoSegments = [
+          { to: { x: 35, y: -12, angle: -Math.PI / 2 }, leadStraight: { x: 35, y: -64, angle: -Math.PI / 2 }, gear: 'D', cue: 'DEMO [1/1] · Shift D: Swing wide in the aisle and turn 90° forward into the bay.' }
+        ];
+      } else if (pattern === 7) {
+        // 7: Forward 60° Herringbone Commuter Slot
+        stage.start = { x: -210, y: 82, angle: 0 };
+        stage.target = { x: 30, y: -58, angle: -Math.PI / 3, w: 68 - tight, h: 120 - tight };
+        stage.coachCue = `${name} ${surname}: Drive forward in D into the 60° angled commuter bay.`;
+        stage.tip = `COACH TIP (${context}): Angled one-way commuter slots allow a smooth single-arc forward entry.`;
+        stage.obstacles = [
+          { x: 0, y: -146, w: 500, h: 20, type: 'curb' },
+          { x: -64 + Math.round(tight / 2), y: -58, w: 96, h: 46, angle: -Math.PI / 3, type: 'car', color: colorA },
+          { x: 124 - Math.round(tight / 2), y: -58, w: 96, h: 46, angle: -Math.PI / 3, type: 'car', color: colorB },
+          { x: 0, y: 170, w: 500, h: 20, type: 'curb' }
+        ];
+        stage.demoSegments = [
+          { to: { x: 4, y: -13, angle: -Math.PI / 3 }, leadStraight: { x: 30, y: -58, angle: -Math.PI / 3 }, gear: 'D', cue: 'DEMO [1/1] · Shift D: Sweep smoothly into the 60° herringbone slot.' }
+        ];
+      } else if (pattern === 8) {
+        // 8: Cul-de-Sac 3-Point Turn / K-Turn Escape Bay
+        stage.start = { x: -125, y: -64, angle: 0 };
+        stage.target = { x: -95, y: 82, angle: Math.PI, w: 62 - Math.round(tight / 2), h: 124 - tight };
+        stage.coachCue = `${name} ${surname}: Execute a 3-point K-turn (D → R → D) in the dead-end to park facing out.`;
+        stage.tip = `COACH TIP (${context}): Use full lock in D, counter-steer full lock in R, then drive straight into the exit bay.`;
+        stage.obstacles = [
+          { x: 0, y: -138, w: 520, h: 22, type: 'wall' },
+          { x: 252, y: 0, w: 24, h: 290, type: 'wall' },
+          { x: 0, y: 148, w: 520, h: 22, type: 'curb' },
+          { x: 135, y: -76, w: 98, h: 46, type: 'car', color: colorA }
+        ];
+        stage.demoSegments = [
+          { to: { x: 32, y: -16, angle: 0.65 }, gear: 'D', cue: 'DEMO [1/3] · Shift D: Turn right toward the cul-de-sac turnaround…' },
+          { to: { x: 128, y: 56, angle: 2.35 }, gear: 'R', cue: 'DEMO [2/3] · Shift R: Counter-steer in Reverse to rotate the car…' },
+          { to: { x: -48, y: 82, angle: Math.PI }, leadStraight: { x: -95, y: 82, angle: Math.PI }, gear: 'D', cue: 'DEMO [3/3] · Shift D: Drive straight into the exit bay.' }
+        ];
+      } else if (pattern === 9) {
+        // 9: Offset Loading-Dock S-Reverse
+        stage.start = { x: -185, y: -55, angle: Math.PI };
+        stage.target = { x: 175, y: 68, angle: Math.PI, w: 66 - Math.round(tight / 2), h: 122 - tight };
+        stage.coachCue = `${name} ${surname}: Shift R and execute a wide S-bend reverse into the recessed loading dock.`;
+        stage.tip = `COACH TIP (${context}): Start your counter-steer halfway across the yard so your trailer/rear lines up square with the dock.`;
+        stage.obstacles = [
+          { x: 0, y: -140, w: 560, h: 20, type: 'curb' },
+          { x: 0, y: 148, w: 560, h: 20, type: 'curb' },
+          { x: 278, y: 68, w: 22, h: 140, type: 'wall' },
+          { x: 175, y: -20, w: 98, h: 46, type: 'car', color: colorA },
+          { x: -15, y: 58, r: 13, type: 'cone' }
+        ];
+        stage.demoSegments = [
+          { to: { x: 125, y: 68, angle: Math.PI }, leadStraight: { x: 175, y: 68, angle: Math.PI }, gear: 'R', cue: 'DEMO [1/1] · Shift R: S-bend reverse across the yard and straighten into the dock.' }
+        ];
+      } else if (pattern === 10) {
+        // 10: Central Island Turnaround Bay
+        stage.start = { x: -190, y: 98, angle: 0 };
+        stage.target = { x: -95, y: -76, angle: 0, w: 62 - Math.round(tight / 2), h: 122 - tight };
+        stage.coachCue = `${name} ${surname}: Drive around the central island in D, then back into the upper pocket.`;
+        stage.tip = `COACH TIP (${context}): Give the central island pillar plenty of inside clearance before shifting to Reverse.`;
+        stage.obstacles = [
+          { x: 0, y: -138, w: 540, h: 20, type: 'curb' },
+          { x: 0, y: 162, w: 540, h: 20, type: 'curb' },
+          { x: -20, y: 24, w: 68, h: 40, type: 'pillar' },
+          { x: 125, y: -76, w: 96, h: 46, type: 'car', color: colorB }
+        ];
+        stage.demoSegments = [
+          { to: { x: 132, y: 72, angle: -Math.PI / 3 }, gear: 'D', cue: 'DEMO [1/2] · Shift D: Sweep wide around the central courtyard island…' },
+          { to: { x: -35, y: -76, angle: 0 }, leadStraight: { x: -95, y: -76, angle: 0 }, gear: 'R', cue: 'DEMO [2/2] · Shift R: Curve above the island and straighten into the bay.' }
+        ];
+      } else {
+        // 11: Double-Row Lot Aisle Back-In
+        stage.start = { x: -215, y: 36, angle: 0 };
+        stage.target = { x: -35, y: -72, angle: -Math.PI / 2, w: 66 - tight, h: 118 - tight };
+        stage.coachCue = `${name} ${surname}: Thread the two-sided aisle in D, then back 90° into the upper row.`;
+        stage.tip = `COACH TIP (${context}): Watch both your front bumper swing against the bottom row and rear corners entering the slot.`;
+        stage.obstacles = [
+          { x: -35 - (82 - tight / 2), y: -72, w: 48, h: 98, type: 'car', color: colorA },
+          { x: -35 + (82 - tight / 2), y: -72, w: 48, h: 98, type: 'car', color: colorB },
+          { x: 122, y: -72, w: 48, h: 98, type: 'car', color: '#2b303a' },
+          { x: -125, y: 138, w: 96, h: 46, type: 'car', color: colorB },
+          { x: 85, y: 138, w: 96, h: 46, type: 'car', color: colorA }
+        ];
+        stage.demoSegments = [
+          { to: { x: 58, y: 46, angle: 0.14 }, gear: 'D', cue: 'DEMO [1/2] · Shift D: Advance down the double-row aisle past the target slot…' },
+          { to: { x: -35, y: 12, angle: -Math.PI / 2 }, leadStraight: { x: -35, y: -72, angle: -Math.PI / 2 }, gear: 'R', cue: 'DEMO [2/2] · Shift R: Pivot 90° into the row and straighten wheels.' }
         ];
       }
+
+      // Apply spatial variation (flipX, flipY, shiftX) so every stage 1..108 has a distinct layout
+      const txX = (x) => (x + shiftX) * flipX;
+      const txY = (y) => y * flipY;
+      const txAngle = (a) => Math.atan2(Math.sin(a) * flipY, Math.cos(a) * flipX);
+
+      stage.start = {
+        x: txX(stage.start.x),
+        y: txY(stage.start.y),
+        angle: txAngle(stage.start.angle)
+      };
+      stage.target = {
+        ...stage.target,
+        x: txX(stage.target.x),
+        y: txY(stage.target.y),
+        angle: txAngle(stage.target.angle)
+      };
+      stage.obstacles = stage.obstacles.map((obs) => ({
+        ...obs,
+        x: txX(obs.x),
+        y: txY(obs.y),
+        angle: obs.angle ? obs.angle * flipX * flipY : 0
+      }));
+      stage.demoSegments = stage.demoSegments.map((seg) => ({
+        ...seg,
+        to: {
+          x: txX(seg.to.x),
+          y: txY(seg.to.y),
+          angle: txAngle(seg.to.angle)
+        },
+        leadStraight: seg.leadStraight
+          ? {
+              x: txX(seg.leadStraight.x),
+              y: txY(seg.leadStraight.y),
+              angle: txAngle(seg.leadStraight.angle)
+            }
+          : null
+      }));
 
       list.push(stage);
       num++;
@@ -573,6 +700,197 @@ const CAR = {
 
 const STORAGE_KEY = 'garuda_drive_cleared_v1';
 const STAR_STORAGE_KEY = 'theparktask_stars_v1';
+const ANALYTICS_STORAGE_KEY = 'theparktask_analytics_v1';
+const VISITOR_ID_KEY = 'theparktask_visitor_id_v1';
+
+// Load Vercel Web Analytics automatically when hosted on a public domain (avoids 404 on localhost)
+if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  window.va = window.va || function (...args) { (window.vaq = window.vaq || []).push(args); };
+  const vaScript = document.createElement('script');
+  vaScript.defer = true;
+  vaScript.src = '/_vercel/insights/script.js';
+  document.head.appendChild(vaScript);
+}
+
+class GameAnalytics {
+  constructor() {
+    let vid = localStorage.getItem(VISITOR_ID_KEY);
+    if (!vid) {
+      vid = 'v_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+      localStorage.setItem(VISITOR_ID_KEY, vid);
+    }
+    this.visitorId = vid;
+    const raw = JSON.parse(localStorage.getItem(ANALYTICS_STORAGE_KEY) || 'null');
+    this.data = raw || {
+      visits: 0,
+      uniqueVisitors: 1,
+      totalPlaySec: 0,
+      attempts: 0,
+      clears: 0,
+      demos: 0,
+      collisions: 0,
+      scoreSum: 0,
+      scoreCount: 0,
+      stages: {},
+      events: []
+    };
+    this.serverData = null;
+  }
+
+  save() {
+    localStorage.setItem(ANALYTICS_STORAGE_KEY, JSON.stringify(this.data));
+  }
+
+  ensureStage(bay) {
+    if (!this.data.stages[bay.id]) {
+      this.data.stages[bay.id] = {
+        id: bay.id,
+        name: `${bay.name} ${bay.surname}`,
+        attempts: 0,
+        clears: 0,
+        collisions: 0,
+        bestTime: null,
+        stars: 0
+      };
+    }
+    return this.data.stages[bay.id];
+  }
+
+  logEvent(label) {
+    const ts = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    this.data.events.unshift({ ts, label });
+    this.data.events = this.data.events.slice(0, 40);
+  }
+
+  async syncServer(payload) {
+    try {
+      const res = await fetch('./analytics_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, visitorId: this.visitorId })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && typeof json.visits === 'number') {
+          this.serverData = json;
+        }
+      }
+    } catch {
+      // Static host (Vercel/GitHub Pages) fallback: uses localStorage + Vercel Insights
+    }
+  }
+
+  trackVercel(eventName, props = {}) {
+    if (typeof window.va === 'function') {
+      try { window.va('event', { name: eventName, data: props }); } catch {}
+    }
+  }
+
+  trackVisit() {
+    this.data.visits++;
+    this.logEvent('Visitor session started');
+    this.save();
+    this.trackVercel('session_start');
+    this.syncServer({ type: 'visit', label: 'Visitor session started' });
+  }
+
+  trackAttempt(bay) {
+    this.data.attempts++;
+    const st = this.ensureStage(bay);
+    st.attempts++;
+    this.save();
+    this.trackVercel('stage_attempt', { stage: bay.id, name: `${bay.name} ${bay.surname}` });
+    this.syncServer({
+      type: 'attempt',
+      stageId: bay.id,
+      stageName: `${bay.name} ${bay.surname}`
+    });
+  }
+
+  trackDemo(bay) {
+    this.data.demos++;
+    const label = `Watched Auto-Demo on Stage ${bay.id} (${bay.name} ${bay.surname})`;
+    this.logEvent(label);
+    this.save();
+    this.trackVercel('demo_watch', { stage: bay.id });
+    this.syncServer({
+      type: 'demo',
+      stageId: bay.id,
+      stageName: `${bay.name} ${bay.surname}`,
+      label
+    });
+  }
+
+  trackCollision(bay, obsName) {
+    this.data.collisions++;
+    const st = this.ensureStage(bay);
+    st.collisions++;
+    const label = `Stage ${bay.id}: Bumped ${obsName}`;
+    this.logEvent(label);
+    this.save();
+    this.syncServer({
+      type: 'collision',
+      stageId: bay.id,
+      stageName: `${bay.name} ${bay.surname}`,
+      label
+    });
+  }
+
+  trackClear(bay, score, stars, timeSec) {
+    this.data.clears++;
+    this.data.scoreSum += score;
+    this.data.scoreCount++;
+    const st = this.ensureStage(bay);
+    st.clears++;
+    st.stars = Math.max(st.stars || 0, stars);
+    st.bestTime = st.bestTime === null ? timeSec : Math.min(st.bestTime, timeSec);
+    const label = `Cleared Stage ${bay.id} (${bay.name} ${bay.surname}) · ${score}% · ${'★'.repeat(stars)} in ${timeSec}s`;
+    this.logEvent(label);
+    this.save();
+    this.trackVercel('stage_clear', { stage: bay.id, score, stars, timeSec });
+    this.syncServer({
+      type: 'clear',
+      stageId: bay.id,
+      stageName: `${bay.name} ${bay.surname}`,
+      score,
+      stars,
+      timeSec,
+      label
+    });
+  }
+
+  tickPlayTime(sec) {
+    this.data.totalPlaySec += sec;
+    this.save();
+    this.syncServer({ type: 'ping', sec });
+  }
+
+  getSnapshot() {
+    if (this.serverData && this.serverData.visits >= this.data.visits) {
+      return { ...this.serverData, source: 'SERVER + LOCAL TELEMETRY' };
+    }
+    const avgScore = this.data.scoreCount > 0 ? Math.round(this.data.scoreSum / this.data.scoreCount) : 0;
+    return {
+      visits: this.data.visits,
+      uniqueVisitors: this.data.uniqueVisitors || 1,
+      totalPlaySec: this.data.totalPlaySec,
+      attempts: this.data.attempts,
+      clears: this.data.clears,
+      demos: this.data.demos,
+      collisions: this.data.collisions,
+      avgScore,
+      stages: this.data.stages,
+      events: this.data.events,
+      source: 'BROWSER + VERCEL TELEMETRY'
+    };
+  }
+}
+
+const analytics = new GameAnalytics();
+analytics.trackVisit();
+setInterval(() => {
+  if (!document.hidden) analytics.tickPlayTime(5);
+}, 5000);
 let clearedBays = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
 let stageRatings = JSON.parse(localStorage.getItem(STAR_STORAGE_KEY) || '{}');
 let currentBayIdx = 0;
@@ -587,7 +905,8 @@ let activeGear = 'D'; // 'P' | 'R' | 'D'
 let lastCollisionBump = 0;
 let holdTimer = 0;
 let autoDemo = false;
-let demoWpIdx = 0;
+let demoTime = 0;
+let demoPlan = null;
 let demoDone = false;
 let hitObsRef = null;
 let hitObsUntil = 0;
@@ -634,7 +953,8 @@ function loadBay(idx) {
   lastGear = 'N';
   holdTimer = 0;
   autoDemo = false;
-  demoWpIdx = 0;
+  demoTime = 0;
+  demoPlan = null;
   demoDone = false;
   hitObsRef = null;
   hitObsUntil = 0;
@@ -647,6 +967,7 @@ function loadBay(idx) {
   document.getElementById('dockTitle').innerHTML = `<b>${bay.id}</b>${bay.name} ${bay.surname}`;
   setCoachCue(bay.coachCue, 'neutral');
 
+  analytics.trackAttempt(bay);
   updateDockUI();
 }
 
@@ -791,6 +1112,7 @@ function completeBay(bay, angleDiff, offsetPx) {
   const penalty = collisions * 12;
   const finalScore = Math.max(45, Math.min(100, alignPct - penalty));
   const grade = finalScore >= 94 ? 'A+' : finalScore >= 86 ? 'A' : finalScore >= 75 ? 'B' : 'C';
+  analytics.trackClear(bay, finalScore, stars, clearTimeSec);
 
   document.getElementById('shPageIdx').textContent = bay.id;
   document.getElementById('shPageTotal').textContent = String(BAYS.length).padStart(2, '0');
@@ -847,73 +1169,185 @@ function stopAutoDemo(msg) {
   if (msg) setCoachCue(msg, 'ok');
 }
 
+function buildDemoTrajectory(bay) {
+  const samples = [];
+  const pivots = [];
+  let cur = { x: bay.start.x, y: bay.start.y, angle: bay.start.angle };
+  let tAccum = 0;
+  const segs = bay.demoSegments || [];
+
+  const pushArc = (p0, p1, gear, cue, isStraight = false) => {
+    const dir = gear === 'R' ? -1 : 1;
+    const distChord = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    const steps = Math.max(24, Math.round(distChord * 0.9));
+    const t0x = dir * Math.cos(p0.angle);
+    const t0y = dir * Math.sin(p0.angle);
+    const t1x = dir * Math.cos(p1.angle);
+    const t1y = dir * Math.sin(p1.angle);
+    const m = distChord * 0.86;
+
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      if (isStraight) {
+        pts.push({
+          x: p0.x + (p1.x - p0.x) * u,
+          y: p0.y + (p1.y - p0.y) * u,
+          angle: p1.angle,
+          u
+        });
+      } else {
+        const h00 = 2 * u * u * u - 3 * u * u + 1;
+        const h10 = u * u * u - 2 * u * u + u;
+        const h01 = -2 * u * u * u + 3 * u * u;
+        const h11 = u * u * u - u * u;
+        const x = h00 * p0.x + h10 * m * t0x + h01 * p1.x + h11 * m * t1x;
+        const y = h00 * p0.y + h10 * m * t0y + h01 * p1.y + h11 * m * t1y;
+
+        // Exact derivative for tangent heading
+        const dh00 = 6 * u * u - 6 * u;
+        const dh10 = 3 * u * u - 4 * u + 1;
+        const dh01 = -6 * u * u + 6 * u;
+        const dh11 = 3 * u * u - 2 * u;
+        const dx = dh00 * p0.x + dh10 * m * t0x + dh01 * p1.x + dh11 * m * t1x;
+        const dy = dh00 * p0.y + dh10 * m * t0y + dh01 * p1.y + dh11 * m * t1y;
+        const angle = i === 0 ? p0.angle : i === steps ? p1.angle : (dir > 0 ? Math.atan2(dy, dx) : Math.atan2(-dy, -dx));
+        pts.push({ x, y, angle, u });
+      }
+    }
+
+    const nomSpeed = isStraight ? 56 : gear === 'R' ? 68 : 82;
+    for (let i = 0; i < pts.length; i++) {
+      const curr = pts[i];
+      const next = pts[Math.min(pts.length - 1, i + 1)];
+      const prev = pts[Math.max(0, i - 1)];
+      const ds = Math.max(0.5, Math.hypot(next.x - prev.x, next.y - prev.y));
+      const dTheta = Math.atan2(Math.sin(next.angle - prev.angle), Math.cos(next.angle - prev.angle));
+      const kappa = (dir * dTheta) / ds;
+      const steer = isStraight ? 0 : Math.max(-CAR.maxSteer, Math.min(CAR.maxSteer, Math.atan(kappa * CAR.wheelbase)));
+
+      // Smooth ease-in / ease-out speed profile
+      const env = Math.sin(Math.PI * Math.max(0.12, Math.min(0.88, curr.u)));
+      const spd = dir * nomSpeed * (0.55 + 0.45 * env);
+      const stepDist = i > 0 ? Math.hypot(curr.x - pts[i - 1].x, curr.y - pts[i - 1].y) : 0;
+      tAccum += stepDist / Math.max(24, Math.abs(spd));
+
+      samples.push({
+        t: tAccum,
+        x: curr.x,
+        y: curr.y,
+        angle: curr.angle,
+        steer,
+        speed: spd,
+        gear,
+        cue
+      });
+    }
+  };
+
+  segs.forEach((seg, idx) => {
+    if (idx > 0) {
+      pivots.push({ x: cur.x, y: cur.y, gear: seg.gear });
+      // Brief instructor pause at gear shift / pivot point
+      tAccum += 0.35;
+      samples.push({
+        t: tAccum,
+        x: cur.x,
+        y: cur.y,
+        angle: cur.angle,
+        steer: 0,
+        speed: 0,
+        gear: seg.gear,
+        cue: seg.cue
+      });
+    }
+    pushArc(cur, seg.to, seg.gear, seg.cue, false);
+    cur = { ...seg.to };
+    if (seg.leadStraight) {
+      pushArc(
+        cur,
+        seg.leadStraight,
+        seg.gear,
+        'DEMO · Straighten wheel to 0° and glide into the center of the bay.',
+        true
+      );
+      cur = { ...seg.leadStraight };
+    }
+  });
+
+  // Final parked lock at exact target center with 0° wheel angle
+  samples.push({
+    t: tAccum + 0.05,
+    x: bay.target.x,
+    y: bay.target.y,
+    angle: bay.target.angle,
+    steer: 0,
+    speed: 0,
+    gear: 'P',
+    cue: 'PERFECT PARK (100% ALIGNED) — Tap Reset (↺) to practice this maneuver!'
+  });
+
+  return { samples, pivots, totalTime: tAccum + 0.05 };
+}
+
 function startAutoDemo() {
   if (autoDemo) {
     stopAutoDemo('Demo paused — you have manual control.');
     return;
   }
   loadBay(currentBayIdx);
+  const bay = BAYS[currentBayIdx];
+  analytics.trackDemo(bay);
+  demoPlan = buildDemoTrajectory(bay);
+  demoTime = 0;
   autoDemo = true;
-  demoWpIdx = 0;
   demoDone = false;
   if (sfx.enabled) sfx.init();
   document.getElementById('demoBtn')?.classList.add('demo-on');
   document.getElementById('demoBtn')?.setAttribute('aria-pressed', 'true');
-  setCoachCue('AUTO DEMO: Watch steering wheel, gear shifts & trajectory.', 'neutral');
+  if (demoPlan.samples[0]?.cue) setCoachCue(demoPlan.samples[0].cue, 'neutral');
 }
 
 function stepAutoDemo(dt, bay) {
-  const wps = bay.demoWaypoints;
-  if (!wps || !wps.length) {
+  if (!demoPlan || !demoPlan.samples.length) {
     stopAutoDemo();
     return;
   }
-
-  // If already aligned inside final bay (or within 10px of final target), brake to a stop and complete demo
-  const lastWp = wps[wps.length - 1];
-  const distToEnd = Math.hypot(lastWp.x - CAR.x, lastWp.y - CAR.y);
-  if (demoWpIdx >= wps.length - 1 && (bayPosState === 'aligned' || distToEnd < 10)) {
+  demoTime += dt;
+  const list = demoPlan.samples;
+  if (demoTime >= demoPlan.totalTime) {
+    const last = list[list.length - 1];
+    CAR.x = last.x;
+    CAR.y = last.y;
+    CAR.angle = last.angle;
+    CAR.steer = 0;
     CAR.speed = 0;
-    CAR.steer *= Math.pow(0.05, dt);
     setActiveGear('P', true);
+    bayPosState = 'aligned';
     if (!demoDone) {
       demoDone = true;
-      stopAutoDemo('DEMO COMPLETE — Tap Reset (↺) to try it yourself!');
+      sfx.playSuccess();
+      stopAutoDemo(last.cue);
     }
     return;
   }
 
-  const wp = wps[Math.min(demoWpIdx, wps.length - 1)];
-  const dx = wp.x - CAR.x;
-  const dy = wp.y - CAR.y;
-  const dist = Math.hypot(dx, dy);
-  const isLast = demoWpIdx === wps.length - 1;
+  // Find current sample along trajectory
+  let idx = 0;
+  while (idx < list.length - 2 && list[idx + 1].t < demoTime) idx++;
+  const a = list[idx];
+  const b = list[idx + 1] || a;
+  const span = Math.max(0.0001, b.t - a.t);
+  const u = Math.max(0, Math.min(1, (demoTime - a.t) / span));
 
-  if (!isLast && dist < 16) {
-    demoWpIdx++;
-    return;
-  }
-
-  setActiveGear(wp.gear, false);
-  let desiredAngle = wp.gear === 'R' ? Math.atan2(dy, dx) + Math.PI : Math.atan2(dy, dx);
-  // On final approach, blend toward the target bay's exact orientation so the car straightens cleanly
-  if (isLast && dist < 42) {
-    const tAngle = bay.target.angle;
-    const altAngle = tAngle + Math.PI;
-    const d1 = Math.abs(Math.atan2(Math.sin(tAngle - CAR.angle), Math.cos(tAngle - CAR.angle)));
-    const d2 = Math.abs(Math.atan2(Math.sin(altAngle - CAR.angle), Math.cos(altAngle - CAR.angle)));
-    const bayAlign = d1 <= d2 ? tAngle : altAngle;
-    const blend = Math.max(0, Math.min(1, 1 - dist / 42));
-    const diff = Math.atan2(Math.sin(bayAlign - desiredAngle), Math.cos(bayAlign - desiredAngle));
-    desiredAngle += diff * blend * 0.75;
-  }
-
-  const err = Math.atan2(Math.sin(desiredAngle - CAR.angle), Math.cos(desiredAngle - CAR.angle));
-  const targetSteer = Math.max(-CAR.maxSteer, Math.min(CAR.maxSteer, (wp.gear === 'R' ? -1.7 : 1.55) * err));
-  CAR.steer += (targetSteer - CAR.steer) * Math.min(1, 12 * dt);
-
-  const targetSpeed = wp.gear === 'R' ? (isLast && dist < 45 ? -42 : -68) : (isLast && dist < 45 ? 44 : 84);
-  CAR.speed += (targetSpeed - CAR.speed) * Math.min(1, 7 * dt);
+  CAR.x = a.x + (b.x - a.x) * u;
+  CAR.y = a.y + (b.y - a.y) * u;
+  const dAng = Math.atan2(Math.sin(b.angle - a.angle), Math.cos(b.angle - a.angle));
+  CAR.angle = a.angle + dAng * u;
+  CAR.steer = a.steer + (b.steer - a.steer) * u;
+  CAR.speed = a.speed + (b.speed - a.speed) * u;
+  setActiveGear(b.gear, false);
+  if (b.cue) setCoachCue(b.cue, 'neutral');
 }
 
 function updatePhysics(dt) {
@@ -924,6 +1358,24 @@ function updatePhysics(dt) {
   if (autoDemo) {
     stepAutoDemo(dt, bay);
     syncStickVisual();
+    const { dist: clearance } = getCarClearance(CAR.x, CAR.y, CAR.angle, bay);
+    const t = bay.target;
+    const dx = CAR.x - t.x;
+    const dy = CAR.y - t.y;
+    const lx = dx * Math.cos(-t.angle) - dy * Math.sin(-t.angle);
+    const ly = dx * Math.sin(-t.angle) + dy * Math.cos(-t.angle);
+    const angleDiff = Math.abs(Math.atan2(Math.sin(CAR.angle - t.angle), Math.cos(CAR.angle - t.angle)));
+    const aligned = angleDiff < 0.18 || Math.abs(angleDiff - Math.PI) < 0.18;
+    const centered = Math.abs(lx) < (t.h - CAR.length) / 2 + 10 && Math.abs(ly) < (t.w - CAR.width) / 2 + 7;
+    bayPosState = aligned && centered ? 'aligned' : 'outside';
+    sfx.updateEngine(CAR.speed, Math.abs(CAR.speed) > 4);
+    sfx.updateRadar(clearance, CAR.speed < -4);
+    const kmh = Math.round(Math.abs(CAR.speed) * 0.12);
+    const steerDeg = Math.round((CAR.steer * 180) / Math.PI);
+    const radarCm = clearance === Infinity ? 'CLEAR' : `${Math.max(0, Math.round(clearance * 4.5))} CM`;
+    document.getElementById('dockTelemetry').textContent =
+      `GEAR: ${activeGear} · ${kmh} KM/H · STEER: ${steerDeg > 0 ? '+' : ''}${steerDeg}° · RADAR: ${radarCm}`;
+    return;
   } else {
     // Steering input (Rotational wheel overrides digital keys)
     const steerRate = 2.6;
@@ -1000,6 +1452,7 @@ function updatePhysics(dt) {
       sfx.playBump();
       haptic([28, 18, 28]);
       const obsName = hitObs?.type === 'wall' ? 'Wall' : hitObs?.type === 'curb' ? 'Curb' : hitObs?.type === 'pillar' ? 'Pillar' : hitObs?.type === 'cone' ? 'Cone' : 'Parked car';
+      analytics.trackCollision(bay, obsName);
       setCoachCue(`${obsName} blocked you! Shift opposite gear & steer clear.`, 'warn');
     }
   } else {
@@ -1152,18 +1605,22 @@ function drawScene() {
       ctx.fillStyle = '#f6faf9';
       ctx.fill();
     } else if (obs.type === 'car') {
-      // Parked car obstacle
+      // Parked car obstacle (matches exact obs.w × obs.h collision box)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fillRect(-obs.h / 2 + 4, -obs.w / 2 + 5, obs.h, obs.w);
+      ctx.fillRect(-obs.w / 2 + 4, -obs.h / 2 + 5, obs.w, obs.h);
       ctx.fillStyle = obs.color || '#3e4a59';
-      roundRect(ctx, -obs.h / 2, -obs.w / 2, obs.h, obs.w, 8);
+      roundRect(ctx, -obs.w / 2, -obs.h / 2, obs.w, obs.h, 8);
       ctx.fill();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
       ctx.lineWidth = 1;
       ctx.stroke();
-      // Windshield
+      // Windshield along longer axis
       ctx.fillStyle = 'rgba(10, 14, 22, 0.72)';
-      roundRect(ctx, -obs.h / 4, -obs.w / 2 + 5, obs.h * 0.55, obs.w - 10, 5);
+      if (obs.w >= obs.h) {
+        roundRect(ctx, -obs.w / 4, -obs.h / 2 + 5, obs.w * 0.55, obs.h - 10, 5);
+      } else {
+        roundRect(ctx, -obs.w / 2 + 5, -obs.h / 4, obs.w - 10, obs.h * 0.55, 5);
+      }
       ctx.fill();
     } else {
       // Curb / Wall / Concrete Pillar
@@ -1188,6 +1645,31 @@ function drawScene() {
 }
 
 function drawTrajectoryGuides() {
+  // Draw Instructor Demo Reference Path & Pivot Markers when demo is active or completed
+  if ((autoDemo || demoDone) && demoPlan && demoPlan.samples.length) {
+    ctx.save();
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.65)';
+    ctx.beginPath();
+    demoPlan.samples.forEach((pt, idx) => {
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    demoPlan.pivots.forEach((pv, i) => {
+      ctx.fillStyle = '#ffc570';
+      ctx.beginPath();
+      ctx.arc(pv.x, pv.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = '700 9px "Geist Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`PIVOT ${i + 1} (${pv.gear})`, pv.x, pv.y - 10);
+    });
+    ctx.restore();
+  }
+
   const steps = 22;
   const stepDt = 0.075;
   const dir = activeGear === 'R' || keys.down || CAR.speed < -2 ? -1 : 1;
@@ -1635,6 +2117,89 @@ function bindPadBtn(id, keyProp) {
 }
 bindPadBtn('btnBrake', 'brake');
 bindPadBtn('btnGas', 'gas');
+
+// Visitor & Gameplay Analytics Modal Renderer
+function formatDuration(totalSec) {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
+  }
+  return `${m}m ${s}s`;
+}
+
+function renderAnalyticsModal() {
+  const snap = analytics.getSnapshot();
+  const setTxt = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(val);
+  };
+  setTxt('anSourceTag', snap.source);
+  setTxt('anVisits', snap.visits);
+  setTxt('anVisitors', snap.uniqueVisitors);
+  setTxt('anPlayTime', formatDuration(snap.totalPlaySec));
+  setTxt('anClears', `${snap.clears} (${clearedBays.size}/108)`);
+  setTxt('anAttempts', snap.attempts);
+  setTxt('anDemos', snap.demos);
+  setTxt('anCollisions', snap.collisions);
+  setTxt('anAvgScore', snap.avgScore > 0 ? `${snap.avgScore}%` : '—');
+
+  const tbody = document.getElementById('anStageTableBody');
+  if (tbody) {
+    const stageRows = Object.values(snap.stages || {}).sort((a, b) => (b.attempts || 0) - (a.attempts || 0));
+    tbody.innerHTML = stageRows.length
+      ? stageRows
+          .map(
+            (st) => `
+          <tr>
+            <td><b>${st.id}</b></td>
+            <td>${st.name || ''}</td>
+            <td>${st.attempts || 0}</td>
+            <td>${st.clears || 0} ${st.stars ? '★'.repeat(st.stars) : ''}</td>
+            <td>${st.collisions || 0}</td>
+            <td>${st.bestTime != null ? `${st.bestTime}s` : '—'}</td>
+          </tr>
+        `
+          )
+          .join('')
+      : `<tr><td colspan="6" style="color:var(--dim)">No stages played yet.</td></tr>`;
+  }
+
+  const feed = document.getElementById('anEventLog');
+  if (feed) {
+    const evs = snap.events || [];
+    feed.innerHTML = evs.length
+      ? evs
+          .map(
+            (ev) => `
+          <div class="an-event">
+            <span>${ev.label}</span>
+            <small>${ev.ts}</small>
+          </div>
+        `
+          )
+          .join('')
+      : `<div class="an-event"><span>No activity recorded yet.</span></div>`;
+  }
+}
+
+document.getElementById('menuAnalyticsBtn')?.addEventListener('click', () => {
+  document.body.classList.remove('menu-open');
+  document.getElementById('menuBtn')?.setAttribute('aria-expanded', 'false');
+  renderAnalyticsModal();
+});
+
+document.getElementById('btnExportAnalytics')?.addEventListener('click', () => {
+  const snap = analytics.getSnapshot();
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `theparktask-analytics-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
 
 // Main Animation Loop
 function loop(now) {
