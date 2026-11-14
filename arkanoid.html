@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Arkanoid: Garuda Shatter 2026 — Kinetic Brick Breaker</title>
+  <title>Arkanoid: Tonna Shatter 2026 — Kinetic Brick Breaker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Geist+Mono:wght@400;500;600;700&family=Geist:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Lexend+Giga:wght@600&family=Montserrat:wght@900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
   <style>
     /* ==========================================================================
-       ARKANOID: GARUDA SHATTER 2026 — SPATIAL HUD & KINETIC ARENA STYLES
+       ARKANOID: TONNA SHATTER 2026 — SPATIAL HUD & KINETIC ARENA STYLES
        ========================================================================== */
     #arkCanvas {
       width: 100%;
@@ -164,18 +164,125 @@
       font-size: 13px;
     }
 
-    /* Bottom Arkanoid action bar */
+    /* Bottom Arkanoid Analogue Control Deck */
     .ark-controls-bar {
       position: fixed;
-      bottom: calc(56px * var(--ui));
+      bottom: calc(44px * var(--ui));
       left: 50%;
       transform: translateX(-50%);
       z-index: 25;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
+      gap: 12px;
+      padding: 8px 14px;
       border-radius: 999px;
+      user-select: none;
+    }
+
+    .ark-analogue-cluster {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ark-pad-dir {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--gold-bright);
+      font: 700 12px/1 "Geist Mono", monospace;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      touch-action: none;
+      transition: background 0.15s, transform 0.15s;
+    }
+
+    .ark-pad-dir:active,
+    .ark-pad-dir.active {
+      background: rgba(255, 197, 112, 0.28);
+      border-color: var(--gold-bright);
+      transform: scale(0.93);
+    }
+
+    .ark-stick-track {
+      position: relative;
+      width: 176px;
+      height: 42px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 50% 50%, rgba(255, 197, 112, 0.12), rgba(8, 5, 6, 0.85));
+      border: 1.5px solid rgba(255, 197, 112, 0.42);
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .ark-stick-track.dragging {
+      cursor: grabbing;
+      border-color: var(--gold-bright);
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65), 0 0 16px rgba(255, 197, 112, 0.35);
+    }
+
+    .ark-stick-rail {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,197,112,0.5), rgba(255,255,255,0.12));
+      pointer-events: none;
+    }
+
+    .ark-stick-center-tick {
+      position: absolute;
+      width: 2px;
+      height: 14px;
+      background: rgba(255, 197, 112, 0.55);
+      pointer-events: none;
+    }
+
+    .ark-stick-knob {
+      position: relative;
+      z-index: 2;
+      width: 58px;
+      height: 32px;
+      border-radius: 999px;
+      background: linear-gradient(160deg, #ffe3a8 0%, #e8ab36 48%, #9a3412 100%);
+      border: 1.5px solid #fffbeb;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55), 0 0 12px rgba(255, 197, 112, 0.45);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transform: translateX(calc(var(--stick-norm, 0) * 54px));
+      transition: transform 0.14s cubic-bezier(0.25, 1.35, 0.5, 1);
+      pointer-events: none;
+    }
+
+    .ark-stick-track.dragging .ark-stick-knob {
+      transition: none;
+    }
+
+    .ark-stick-knob span {
+      font: 800 8px/1 "Geist Mono", monospace;
+      letter-spacing: 0.12em;
+      color: #180609;
+    }
+
+    .ark-stick-knob small {
+      font: 700 8.5px/1 "Geist Mono", monospace;
+      color: #2e1005;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ark-deck-sep {
+      width: 1px;
+      height: 26px;
+      background: rgba(255, 255, 255, 0.16);
     }
 
     .ark-act-btn {
@@ -270,13 +377,32 @@
         top: 102px !important;
       }
       .ark-controls-bar {
-        bottom: 10px;
-        gap: 4px;
-        padding: 5px 6px;
-        max-width: calc(100vw - 12px);
+        bottom: 8px;
+        gap: 6px;
+        padding: 6px 8px;
+        max-width: calc(100vw - 10px);
+        flex-wrap: wrap;
+        justify-content: center;
+        border-radius: 20px;
+      }
+      .ark-stick-track {
+        width: 138px;
+        height: 36px;
+      }
+      .ark-stick-knob {
+        width: 48px;
+        height: 28px;
+        transform: translateX(calc(var(--stick-norm, 0) * 41px));
+      }
+      .ark-pad-dir {
+        width: 32px;
+        height: 32px;
+      }
+      .ark-deck-sep {
+        display: none;
       }
       .ark-act-btn {
-        height: 32px;
+        height: 30px;
         padding: 0 8px;
         font-size: 9px;
         letter-spacing: 0.08em;
@@ -289,7 +415,7 @@
   <!-- ====================================================================
        1. FULL-VIEWPORT KINETIC ARKANOID CANVAS (#app)
        ==================================================================== -->
-  <main id="app" aria-label="Arkanoid: Garuda Shatter 2026 Arena">
+  <main id="app" aria-label="Arkanoid: Tonna Shatter 2026 Arena">
     <canvas id="arkCanvas"></canvas>
   </main>
 
@@ -299,12 +425,12 @@
   <header class="top">
     <a class="logo" href="./index.html" title="Return to Parking Academy">
       <span class="logo-shield" aria-hidden="true">A</span>
-      <span>GARUDA SHATTER</span>
+      <span>TONNA SHATTER</span>
       <small>KINETIC ARKANOID</small>
     </a>
 
     <div class="brand">
-      <p class="brand-kicker" id="arkSectorKicker">SECTOR 01 · GARUDA CREST</p>
+      <p class="brand-kicker" id="arkSectorKicker">SECTOR 01 · TONNA CREST</p>
       <div class="champs" aria-label="ARKANOID">
         <span class="ch-gold" aria-hidden="true">ARKANOID</span>
         <span class="ch-face">ARKANOID</span>
@@ -337,7 +463,7 @@
   <!-- Live Tactical Status Pill -->
   <div id="coachCue" class="coach-cue glass-panel" role="status" aria-live="polite">
     <span class="cue-dot"></span>
-    <span id="arkCueText">Move Vaus paddle with Mouse / Touch / A·D and press SPACE or Tap LAUNCH to release the plasma core.</span>
+    <span id="arkCueText">Drag the bottom Analogue Stick (or press A·D / ←·→) to steer Vaus, and tap LAUNCH to fire.</span>
   </div>
 
   <!-- ====================================================================
@@ -356,7 +482,7 @@
   </button>
 
   <nav id="mainMenu" class="mn-panel espresso-card" aria-label="Arkanoid Menu">
-    <p class="mn-k" style="--i:0">GARUDA SHATTER · ARKANOID 2026</p>
+    <p class="mn-k" style="--i:0">TONNA SHATTER · ARKANOID 2026</p>
     <div class="mn-list">
       <button type="button" class="mn-go" style="--i:1" commandfor="arkStagesModal" command="show-modal">
         <span class="mn-num">01</span>
@@ -387,8 +513,8 @@
     <div class="mn-rule" style="--i:5"></div>
     <p class="mn-k" style="--i:6">CONTROLS &amp; AMBIENCE</p>
     <p class="mn-controls-hint" style="--i:7">
-      <b>MOUSE / TOUCH</b> Slide Vaus Paddle<br/>
-      <b>A D / ← →</b> Deflect &nbsp;·&nbsp; <b>SPACE / CLICK</b> Launch &amp; Laser
+      <b>ANALOGUE STICK</b> Drag Left / Right<br/>
+      <b>A D / ← →</b> Steer &nbsp;·&nbsp; <b>SPACE / LAUNCH</b> Fire
     </p>
     <div class="mn-actions" style="--i:8">
       <button type="button" class="mn-chip" id="menuAmbBtn">DAY / NIGHT ARENA</button>
@@ -439,7 +565,7 @@
        ==================================================================== -->
   <div id="arkBanner" class="ark-overlay-banner espresso-card" role="dialog" aria-live="assertive" aria-labelledby="arkBannerTitle">
     <p class="ark-overlay-kicker" id="arkBannerKicker">SECTOR CLEARED</p>
-    <h2 class="ark-overlay-title" id="arkBannerTitle">GARUDA CREST SHATTERED</h2>
+    <h2 class="ark-overlay-title" id="arkBannerTitle">TONNA CREST SHATTERED</h2>
     <p class="ark-overlay-sub" id="arkBannerSub">Score Bonus +1,500 · Ready for next kinetic sector.</p>
     <div class="ark-overlay-actions">
       <button type="button" class="sh-cta" id="arkBannerPrimaryBtn" style="padding:0 22px;min-height:42px">NEXT SECTOR →</button>
@@ -448,21 +574,43 @@
   </div>
 
   <!-- ====================================================================
-       6. BOTTOM ACTION DOCK & BROADCAST MARQUEE
+       6. BOTTOM ANALOGUE CONTROL DECK & BROADCAST MARQUEE
        ==================================================================== -->
-  <div class="ark-controls-bar glass-panel" role="toolbar" aria-label="Arkanoid Action Controls">
-    <button type="button" class="ark-act-btn" id="btnPrevSector" title="Previous Sector">◀</button>
+  <div class="ark-controls-bar glass-panel" role="toolbar" aria-label="Arkanoid Analogue Control Deck">
+    <div class="ark-analogue-cluster">
+      <button type="button" class="ark-pad-dir" id="btnPadLeft" aria-label="Steer Paddle Left">◀</button>
+      <div
+        id="arkStickTrack"
+        class="ark-stick-track"
+        role="slider"
+        tabindex="0"
+        aria-label="Vaus Paddle Analogue Stick"
+        aria-valuemin="-100"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <div class="ark-stick-rail" aria-hidden="true"></div>
+        <div class="ark-stick-center-tick" aria-hidden="true"></div>
+        <div id="arkStickKnob" class="ark-stick-knob">
+          <span>STICK</span>
+          <small id="arkStickReadout">0%</small>
+        </div>
+      </div>
+      <button type="button" class="ark-pad-dir" id="btnPadRight" aria-label="Steer Paddle Right">▶</button>
+    </div>
+
+    <div class="ark-deck-sep" aria-hidden="true"></div>
+
     <button type="button" class="ark-act-btn primary" id="btnLaunchBall">LAUNCH / FIRE</button>
     <button type="button" class="ark-act-btn" id="btnAiQuick">AI DEMO</button>
     <button type="button" class="ark-act-btn" id="btnPauseGame">PAUSE</button>
     <button type="button" class="ark-act-btn" commandfor="arkStagesModal" command="show-modal">SECTORS</button>
-    <button type="button" class="ark-act-btn" id="btnNextSector" title="Next Sector">▶</button>
   </div>
 
   <footer class="marquee" aria-hidden="true">
     <div class="mq-track">
-      <span><b>GARUDA SHATTER 2026</b><i>·</i>KINETIC ARKANOID<i>·</i>DEFLECT AT PADDLE EDGES FOR SHARP ANGLES<i>·</i>SHATTER PLASMA CORES FOR CHAIN DETONATIONS<i>·</i><b>12 SECTORS</b><i>·</i></span>
-      <span><b>GARUDA SHATTER 2026</b><i>·</i>KINETIC ARKANOID<i>·</i>DEFLECT AT PADDLE EDGES FOR SHARP ANGLES<i>·</i>SHATTER PLASMA CORES FOR CHAIN DETONATIONS<i>·</i><b>12 SECTORS</b><i>·</i></span>
+      <span><b>TONNA SHATTER 2026</b><i>·</i>KINETIC ARKANOID<i>·</i>USE ANALOGUE STICK TO STEER VAUS PADDLE<i>·</i>SHATTER PLASMA CORES FOR CHAIN DETONATIONS<i>·</i><b>12 SECTORS</b><i>·</i></span>
+      <span><b>TONNA SHATTER 2026</b><i>·</i>KINETIC ARKANOID<i>·</i>USE ANALOGUE STICK TO STEER VAUS PADDLE<i>·</i>SHATTER PLASMA CORES FOR CHAIN DETONATIONS<i>·</i><b>12 SECTORS</b><i>·</i></span>
     </div>
   </footer>
 

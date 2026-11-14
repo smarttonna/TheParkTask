@@ -1,6 +1,6 @@
 // ==========================================================================
-// ARKANOID: GARUDA SHATTER 2026 — KINETIC BRICK BREAKER ENGINE
-// Sub-stepped Physics · 6 Power-Up Augments · 12 Sectors · AI Auto-Pilot
+// ARKANOID: TONNA SHATTER 2026 — KINETIC BRICK BREAKER ENGINE
+// Sub-stepped Physics · Analogue Stick Control · 6 Augments · 12 Sectors
 // ==========================================================================
 
 // 1. Modern Web Guidance: Invoker Commands & Light-Dismiss Dialog Fallbacks
@@ -185,7 +185,7 @@ const POWER_TYPES = [
 const SECTORS = [
   {
     id: '01',
-    name: 'GARUDA CREST',
+    name: 'TONNA CREST',
     sub: 'Winged Formation & Prism Core',
     baseSpeed: 500,
     build(cols, rows) {
@@ -505,6 +505,21 @@ let shockwaves = [];
 let popups = [];
 
 const keys = { left: false, right: false };
+let analogueStickNorm = null; // -1..1 when dragging analogue stick
+
+const stickTrackEl = document.getElementById('arkStickTrack');
+const stickReadoutEl = document.getElementById('arkStickReadout');
+
+function syncAnalogueStickVisual(normVal) {
+  if (!stickTrackEl) return;
+  const clamped = Math.max(-1, Math.min(1, normVal));
+  stickTrackEl.style.setProperty('--stick-norm', clamped.toFixed(3));
+  const pct = Math.round(clamped * 100);
+  if (stickReadoutEl) {
+    stickReadoutEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+  }
+  stickTrackEl.setAttribute('aria-valuenow', String(pct));
+}
 
 function setCue(msg) {
   const el = document.getElementById('arkCueText');
@@ -515,7 +530,7 @@ function computeArenaBounds() {
   const isMobile = vw <= 900;
   const sideMargin = isMobile ? 12 : Math.max(220, vw * 0.18);
   const topMargin = isMobile ? 148 : 126;
-  const botMargin = isMobile ? 74 : 104;
+  const botMargin = isMobile ? 102 : 112;
 
   const maxW = Math.min(960, vw - sideMargin * 2);
   const maxH = Math.max(320, vh - topMargin - botMargin);
@@ -636,7 +651,7 @@ function loadSector(idx, resetScoreAndLives = false) {
 
   const kicker = document.getElementById('arkSectorKicker');
   if (kicker) kicker.textContent = `SECTOR ${sec.id} · ${sec.name}`;
-  setCue(`SECTOR ${sec.id}: ${sec.sub} — Press SPACE or Tap LAUNCH to fire plasma core.`);
+  setCue(`SECTOR ${sec.id}: ${sec.sub} — Use the Analogue Stick (or A·D / ←·→) and tap LAUNCH.`);
   updateHUD();
   renderStagesGrid();
 }
@@ -962,16 +977,18 @@ function updatePhysics(dt) {
   });
   paddle.w = powers.WIDE > 0 ? paddle.baseW * 1.45 : paddle.baseW;
 
-  // Paddle movement
+  // Paddle movement (Analogue Stick + Directional Pads + Keyboard + AI Pilot)
   const prevPaddleX = paddle.x;
   if (aiPilot) {
     stepAiPilot(dt);
-  } else if (paddle.targetX !== null) {
-    const diff = paddle.targetX - paddle.x;
-    paddle.x += diff * Math.min(1, dt * 26);
+    syncAnalogueStickVisual(Math.max(-1, Math.min(1, paddle.vx / 680)));
+  } else if (analogueStickNorm !== null) {
+    paddle.x += analogueStickNorm * 720 * dt;
+    syncAnalogueStickVisual(analogueStickNorm);
   } else {
     const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
     paddle.x += dir * 680 * dt;
+    syncAnalogueStickVisual(dir);
   }
 
   const minPadX = arena.x + paddle.w / 2;
@@ -1557,29 +1574,72 @@ function renderStagesGrid() {
   });
 }
 
-// 10. Pointer, Touch & Keyboard Listeners
-window.addEventListener('pointermove', (e) => {
-  if (document.querySelector('dialog[open]') || document.body.classList.contains('menu-open')) return;
-  if (e.clientY > arena.y - 20 && e.clientY < arena.y + arena.h + 40) {
-    paddle.targetX = e.clientX;
-  }
-});
+// 10. Analogue Stick, Directional Pads & Keyboard Listeners (No Sensor/Hover Movement)
+if (stickTrackEl) {
+  const updateStickFromEvent = (e) => {
+    const rect = stickTrackEl.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const maxTravel = Math.max(24, (rect.width - 54) / 2);
+    const norm = Math.max(-1, Math.min(1, (e.clientX - centerX) / maxTravel));
+    analogueStickNorm = norm;
+    syncAnalogueStickVisual(norm);
+  };
 
-canvas.addEventListener('pointerdown', (e) => {
-  paddle.targetX = e.clientX;
-  launchStuckBalls();
-});
+  stickTrackEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (aiPilot) toggleAiPilot();
+    if (sfx.enabled) sfx.init();
+    stickTrackEl.setPointerCapture(e.pointerId);
+    stickTrackEl.classList.add('dragging');
+    updateStickFromEvent(e);
+  });
+
+  stickTrackEl.addEventListener('pointermove', (e) => {
+    if (analogueStickNorm === null) return;
+    updateStickFromEvent(e);
+  });
+
+  const releaseStick = () => {
+    analogueStickNorm = null;
+    stickTrackEl.classList.remove('dragging');
+    syncAnalogueStickVisual(0);
+  };
+
+  stickTrackEl.addEventListener('pointerup', releaseStick);
+  stickTrackEl.addEventListener('pointercancel', releaseStick);
+}
+
+function bindDirPad(id, prop) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  const on = (e) => {
+    e.preventDefault();
+    if (aiPilot) toggleAiPilot();
+    if (sfx.enabled) sfx.init();
+    keys[prop] = true;
+    btn.classList.add('active');
+  };
+  const off = () => {
+    keys[prop] = false;
+    btn.classList.remove('active');
+  };
+  btn.addEventListener('pointerdown', on);
+  window.addEventListener('pointerup', off);
+  window.addEventListener('pointercancel', off);
+}
+bindDirPad('btnPadLeft', 'left');
+bindDirPad('btnPadRight', 'right');
 
 window.addEventListener('keydown', (e) => {
   if (document.querySelector('dialog[open]')) return;
   const k = e.key.toLowerCase();
   if (k === 'a' || e.key === 'ArrowLeft') {
-    paddle.targetX = null;
+    if (aiPilot) toggleAiPilot();
     keys.left = true;
     e.preventDefault();
   }
   if (k === 'd' || e.key === 'ArrowRight') {
-    paddle.targetX = null;
+    if (aiPilot) toggleAiPilot();
     keys.right = true;
     e.preventDefault();
   }
@@ -1833,7 +1893,7 @@ document.getElementById('btnExportAnalytics')?.addEventListener('click', () => {
 // Log Arkanoid session visit
 recordAnalytics((data) => {
   data.visits = (data.visits || 0) + 1;
-}, 'Visitor session started (Arkanoid: Garuda Shatter)');
+}, 'Visitor session started (Arkanoid: Tonna Shatter)');
 
 // 12. Main Animation Loop
 let lastTime = performance.now();
