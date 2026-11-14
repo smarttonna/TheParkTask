@@ -208,12 +208,13 @@
     }
 
     .ark-stick-track {
+      --stick-travel: 68px;
       position: relative;
-      width: 176px;
-      height: 42px;
+      width: 210px;
+      height: 46px;
       border-radius: 999px;
-      background: radial-gradient(circle at 50% 50%, rgba(255, 197, 112, 0.12), rgba(8, 5, 6, 0.85));
-      border: 1.5px solid rgba(255, 197, 112, 0.42);
+      background: radial-gradient(circle at 50% 50%, rgba(255, 197, 112, 0.14), rgba(8, 5, 6, 0.88));
+      border: 1.5px solid rgba(255, 197, 112, 0.45);
       box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.65);
       display: flex;
       align-items: center;
@@ -248,8 +249,8 @@
     .ark-stick-knob {
       position: relative;
       z-index: 2;
-      width: 58px;
-      height: 32px;
+      width: 62px;
+      height: 34px;
       border-radius: 999px;
       background: linear-gradient(160deg, #ffe3a8 0%, #e8ab36 48%, #9a3412 100%);
       border: 1.5px solid #fffbeb;
@@ -258,8 +259,9 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      transform: translateX(calc(var(--stick-norm, 0) * 54px));
-      transition: transform 0.14s cubic-bezier(0.25, 1.35, 0.5, 1);
+      will-change: transform;
+      transform: translate3d(calc(var(--stick-norm, 0) * var(--stick-travel, 68px)), 0, 0);
+      transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
       pointer-events: none;
     }
 
@@ -386,13 +388,13 @@
         border-radius: 20px;
       }
       .ark-stick-track {
-        width: 138px;
-        height: 36px;
+        --stick-travel: 46px;
+        width: 152px;
+        height: 38px;
       }
       .ark-stick-knob {
-        width: 48px;
+        width: 50px;
         height: 28px;
-        transform: translateX(calc(var(--stick-norm, 0) * 41px));
       }
       .ark-pad-dir {
         width: 32px;

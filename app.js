@@ -2000,65 +2000,96 @@ let stickSpringing = false;
 const steerWheelEl = document.getElementById('steerWheel');
 const steerRotorEl = document.getElementById('steerWheelRotor');
 const stickReadoutEl = document.getElementById('stickReadout');
+let lastWheelDegAttr = null;
+let lastWheelCssDeg = null;
 
-function syncStickVisual() {
+function syncStickVisual(overrideNorm = null) {
   if (!steerWheelEl || !steerRotorEl) return;
-  const norm = CAR.steer / CAR.maxSteer;
+  const norm = overrideNorm !== null ? overrideNorm : CAR.steer / CAR.maxSteer;
   const wheelDeg = norm * 180;
-  steerRotorEl.style.setProperty('--wheel-deg', `${wheelDeg.toFixed(1)}deg`);
-  const deg = Math.round((CAR.steer * 180) / Math.PI);
-  if (stickReadoutEl) stickReadoutEl.textContent = `${deg > 0 ? '+' : ''}${deg}°`;
-  steerWheelEl.setAttribute('aria-valuenow', String(deg));
+  if (lastWheelCssDeg === null || Math.abs(wheelDeg - lastWheelCssDeg) > 0.15) {
+    lastWheelCssDeg = wheelDeg;
+    steerRotorEl.style.setProperty('--wheel-deg', `${wheelDeg.toFixed(1)}deg`);
+  }
+  const deg = Math.round(norm * ((CAR.maxSteer * 180) / Math.PI));
+  if (deg !== lastWheelDegAttr) {
+    lastWheelDegAttr = deg;
+    if (stickReadoutEl) stickReadoutEl.textContent = `${deg > 0 ? '+' : ''}${deg}°`;
+    steerWheelEl.setAttribute('aria-valuenow', String(deg));
+  }
 }
 
 if (steerWheelEl) {
-  let lastPointerAngle = 0;
+  let lastPointerAngle = null;
+  let lastPointerX = 0;
   let wheelLockNorm = 0;
+  let cachedWheelRect = null;
 
-  const getPointerAngle = (e) => {
-    const rect = steerWheelEl.getBoundingClientRect();
+  const getPointerInfo = (e) => {
+    const rect = cachedWheelRect || steerWheelEl.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
     const dx = e.clientX - cx;
     const dy = e.clientY - cy;
-    if (Math.hypot(dx, dy) < 6) return null;
-    return Math.atan2(dy, dx);
+    const dist = Math.hypot(dx, dy);
+    return { angle: dist >= 10 ? Math.atan2(dy, dx) : null, radius: Math.max(28, rect.width / 2) };
   };
 
   steerWheelEl.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (autoDemo) stopAutoDemo('Manual override — you have control.');
+    cachedWheelRect = steerWheelEl.getBoundingClientRect();
     steerWheelEl.setPointerCapture(e.pointerId);
     steerWheelEl.classList.add('dragging');
     stickSpringing = false;
     if (sfx.enabled) sfx.init();
     wheelLockNorm = CAR.steer / CAR.maxSteer;
     analogueSteer = wheelLockNorm;
-    const angle = getPointerAngle(e);
-    lastPointerAngle = angle !== null ? angle : 0;
+    const info = getPointerInfo(e);
+    lastPointerAngle = info.angle;
+    lastPointerX = e.clientX;
   });
+
+  const handleWheelMove = (ev) => {
+    const info = getPointerInfo(ev);
+    const dx = ev.clientX - lastPointerX;
+    lastPointerX = ev.clientX;
+
+    if (info.angle !== null && lastPointerAngle !== null) {
+      let dAngle = info.angle - lastPointerAngle;
+      while (dAngle > Math.PI) dAngle -= Math.PI * 2;
+      while (dAngle < -Math.PI) dAngle += Math.PI * 2;
+      lastPointerAngle = info.angle;
+      wheelLockNorm = Math.max(-1, Math.min(1, wheelLockNorm + dAngle / (Math.PI * 0.85)));
+    } else {
+      // Smooth horizontal drag fallback when finger passes near wheel center
+      lastPointerAngle = info.angle;
+      wheelLockNorm = Math.max(-1, Math.min(1, wheelLockNorm + dx / info.radius));
+    }
+    analogueSteer = wheelLockNorm;
+    CAR.steer = analogueSteer * CAR.maxSteer;
+    syncStickVisual(analogueSteer);
+  };
 
   steerWheelEl.addEventListener('pointermove', (e) => {
     if (analogueSteer === null) return;
-    const angle = getPointerAngle(e);
-    if (angle === null) return;
-    let dAngle = angle - lastPointerAngle;
-    while (dAngle > Math.PI) dAngle -= Math.PI * 2;
-    while (dAngle < -Math.PI) dAngle += Math.PI * 2;
-    lastPointerAngle = angle;
-    wheelLockNorm = Math.max(-1, Math.min(1, wheelLockNorm + dAngle / Math.PI));
-    analogueSteer = wheelLockNorm;
+    const events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [e];
+    for (const ev of events) {
+      handleWheelMove(ev);
+    }
   });
 
   const releaseWheel = () => {
     analogueSteer = null;
+    cachedWheelRect = null;
+    lastPointerAngle = null;
     steerWheelEl.classList.remove('dragging');
   };
   steerWheelEl.addEventListener('pointerup', releaseWheel);
   steerWheelEl.addEventListener('pointercancel', releaseWheel);
   steerWheelEl.addEventListener('dblclick', () => {
     CAR.steer = 0;
-    syncStickVisual();
+    syncStickVisual(0);
     haptic(10);
   });
 }

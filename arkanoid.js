@@ -506,6 +506,10 @@ let popups = [];
 
 const keys = { left: false, right: false };
 let analogueStickNorm = null; // -1..1 when dragging analogue stick
+let stickDragTargetX = null;  // 1:1 relative paddle target while sliding stick
+let smoothKeyVx = 0;          // exponentially smoothed velocity for buttons/keys
+let lastVisualNorm = 0;
+let lastVisualPct = 0;
 
 const stickTrackEl = document.getElementById('arkStickTrack');
 const stickReadoutEl = document.getElementById('arkStickReadout');
@@ -513,12 +517,18 @@ const stickReadoutEl = document.getElementById('arkStickReadout');
 function syncAnalogueStickVisual(normVal) {
   if (!stickTrackEl) return;
   const clamped = Math.max(-1, Math.min(1, normVal));
-  stickTrackEl.style.setProperty('--stick-norm', clamped.toFixed(3));
-  const pct = Math.round(clamped * 100);
-  if (stickReadoutEl) {
-    stickReadoutEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+  if (Math.abs(clamped - lastVisualNorm) > 0.002) {
+    lastVisualNorm = clamped;
+    stickTrackEl.style.setProperty('--stick-norm', clamped.toFixed(3));
   }
-  stickTrackEl.setAttribute('aria-valuenow', String(pct));
+  const pct = Math.round(clamped * 100);
+  if (pct !== lastVisualPct) {
+    lastVisualPct = pct;
+    if (stickReadoutEl) {
+      stickReadoutEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+    }
+    stickTrackEl.setAttribute('aria-valuenow', String(pct));
+  }
 }
 
 function setCue(msg) {
@@ -977,18 +987,37 @@ function updatePhysics(dt) {
   });
   paddle.w = powers.WIDE > 0 ? paddle.baseW * 1.45 : paddle.baseW;
 
-  // Paddle movement (Analogue Stick + Directional Pads + Keyboard + AI Pilot)
+  // Paddle movement (Dual-Response Smooth Analogue Stick + Exponential Momentum for Keys/Pads + AI Pilot)
   const prevPaddleX = paddle.x;
   if (aiPilot) {
     stepAiPilot(dt);
     syncAnalogueStickVisual(Math.max(-1, Math.min(1, paddle.vx / 680)));
   } else if (analogueStickNorm !== null) {
-    paddle.x += analogueStickNorm * 720 * dt;
+    // 1) Smooth 1:1 relative thumb-glide + 2) Continuous proportional edge velocity when held past 55%
+    if (stickDragTargetX !== null) {
+      const edgeOverflow = Math.max(0, Math.abs(analogueStickNorm) - 0.55) / 0.45;
+      if (edgeOverflow > 0) {
+        stickDragTargetX += Math.sign(analogueStickNorm) * Math.pow(edgeOverflow, 1.35) * 760 * dt;
+      }
+      const minPadX = arena.x + paddle.w / 2;
+      const maxPadX = arena.x + arena.w - paddle.w / 2;
+      stickDragTargetX = Math.max(minPadX, Math.min(maxPadX, stickDragTargetX));
+      const alpha = 1 - Math.exp(-34 * dt);
+      paddle.x += (stickDragTargetX - paddle.x) * alpha;
+    } else {
+      const curved = Math.sign(analogueStickNorm) * (0.3 * Math.abs(analogueStickNorm) + 0.7 * analogueStickNorm * analogueStickNorm);
+      paddle.x += curved * 760 * dt;
+    }
+    smoothKeyVx = 0;
     syncAnalogueStickVisual(analogueStickNorm);
   } else {
     const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-    paddle.x += dir * 680 * dt;
-    syncAnalogueStickVisual(dir);
+    const targetVx = dir * 740;
+    const rate = dir !== 0 ? 22 : 28;
+    smoothKeyVx += (targetVx - smoothKeyVx) * (1 - Math.exp(-rate * dt));
+    if (Math.abs(smoothKeyVx) < 1.5 && dir === 0) smoothKeyVx = 0;
+    paddle.x += smoothKeyVx * dt;
+    syncAnalogueStickVisual(smoothKeyVx / 740);
   }
 
   const minPadX = arena.x + paddle.w / 2;
@@ -1576,12 +1605,30 @@ function renderStagesGrid() {
 
 // 10. Analogue Stick, Directional Pads & Keyboard Listeners (No Sensor/Hover Movement)
 if (stickTrackEl) {
-  const updateStickFromEvent = (e) => {
-    const rect = stickTrackEl.getBoundingClientRect();
+  let cachedRect = null;
+  let dragLastClientX = 0;
+
+  const updateStickFromEvent = (e, isInitial = false) => {
+    const rect = cachedRect || stickTrackEl.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
-    const maxTravel = Math.max(24, (rect.width - 54) / 2);
+    const maxTravel = Math.max(28, (rect.width - 56) / 2);
     const norm = Math.max(-1, Math.min(1, (e.clientX - centerX) / maxTravel));
     analogueStickNorm = norm;
+
+    if (isInitial) {
+      dragLastClientX = e.clientX;
+      stickDragTargetX = paddle.x;
+      // If user taps distinctly on left/right side of track, nudge target smoothly toward that side
+      if (Math.abs(norm) > 0.22) {
+        stickDragTargetX += norm * (arena.w * 0.14);
+      }
+    } else {
+      const dx = e.clientX - dragLastClientX;
+      dragLastClientX = e.clientX;
+      const arenaPerTrackPx = (arena.w * 0.92) / Math.max(80, rect.width - 36);
+      stickDragTargetX = (stickDragTargetX ?? paddle.x) + dx * arenaPerTrackPx;
+    }
+
     syncAnalogueStickVisual(norm);
   };
 
@@ -1589,18 +1636,24 @@ if (stickTrackEl) {
     e.preventDefault();
     if (aiPilot) toggleAiPilot();
     if (sfx.enabled) sfx.init();
+    cachedRect = stickTrackEl.getBoundingClientRect();
     stickTrackEl.setPointerCapture(e.pointerId);
     stickTrackEl.classList.add('dragging');
-    updateStickFromEvent(e);
+    updateStickFromEvent(e, true);
   });
 
   stickTrackEl.addEventListener('pointermove', (e) => {
     if (analogueStickNorm === null) return;
-    updateStickFromEvent(e);
+    const events = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [e];
+    for (const ev of events) {
+      updateStickFromEvent(ev, false);
+    }
   });
 
   const releaseStick = () => {
     analogueStickNorm = null;
+    stickDragTargetX = null;
+    cachedRect = null;
     stickTrackEl.classList.remove('dragging');
     syncAnalogueStickVisual(0);
   };
