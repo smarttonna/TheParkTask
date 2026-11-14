@@ -37,6 +37,10 @@
     </div>
 
     <div class="nav right">
+      <a href="./builder.html" class="gl-btn" title="Create Your Own Parking Environment & Maneuver Sandbox">
+        <span>🛠 CUSTOM LOT</span>
+      </a>
+
       <a href="./arkanoid.html" class="gl-btn" title="Play Arkanoid: Tonna Shatter 2026">
         <span>ARKANOID</span>
       </a>
@@ -120,12 +124,16 @@
         <span class="mn-num">07</span>
         <span class="mn-t">Comments Chatbox</span>
       </button>
-      <a href="./arkanoid.html" class="mn-go" style="--i:8;text-decoration:none">
+      <a href="./builder.html" class="mn-go" style="--i:8;text-decoration:none">
         <span class="mn-num">08</span>
+        <span class="mn-t">Custom Lot Builder (Sandbox)</span>
+      </a>
+      <a href="./arkanoid.html" class="mn-go" style="--i:9;text-decoration:none">
+        <span class="mn-num">09</span>
         <span class="mn-t">Arkanoid · Modern Shatter</span>
       </a>
-      <a href="./bcrypt.html" class="mn-go" style="--i:9;text-decoration:none">
-        <span class="mn-num">09</span>
+      <a href="./bcrypt.html" class="mn-go" style="--i:10;text-decoration:none">
+        <span class="mn-num">10</span>
         <span class="mn-t">Bcrypt Hash Generator</span>
       </a>
     </div>
@@ -592,15 +600,16 @@
       <div id="authProfileView" class="an-card auth-profile-card" hidden>
         <div class="auth-profile-row">
           <div class="auth-avatar" id="authAvatarInitials">TD</div>
+          <img id="authAvatarImg" class="auth-avatar-img" alt="User avatar" hidden />
           <div>
-            <p class="mn-k" style="color:var(--emerald);margin:0">✓ VERIFIED DRIVER ACCOUNT</p>
+            <p class="mn-k" style="color:var(--emerald);margin:0" id="authVerifiedKicker">✓ VERIFIED DRIVER ACCOUNT</p>
             <h4 id="authProfileName" class="auth-profile-name">Tonna Driver</h4>
             <p id="authProfileEmail" class="auth-profile-email">driver@example.com</p>
           </div>
         </div>
         <div class="auth-profile-stats">
           <div><span>STAGES CLEARED</span><strong id="authStatClears">0 / 108</strong></div>
-          <div><span>ACCOUNT MODE</span><strong id="authStatProvider">Local / Cloud Sync</strong></div>
+          <div><span>ACCOUNT MODE</span><strong id="authStatProvider">Google / Cloud Sync</strong></div>
         </div>
         <div class="auth-profile-actions">
           <button type="button" id="authSignOutBtn" class="sh-btn" style="height:40px">SIGN OUT (SWITCH TO GUEST)</button>
@@ -610,7 +619,20 @@
       <!-- TAB 1: SIGN IN FORM -->
       <div id="authPanelSignIn" class="auth-tab-panel">
         <div class="an-card">
-          <p class="an-gate-desc">Sign in to sync your cleared stages, grades, and verified badge in the comments chatbox. <b>Or play &amp; comment immediately as a Guest!</b></p>
+          <p class="an-gate-desc">Sign in with <b>Google</b> (via Firebase Auth) or Email to sync your cleared stages, grades, and verified badge in the comments chatbox. <b>Or play &amp; comment immediately as a Guest!</b></p>
+
+          <button type="button" id="googleSignInBtn" class="google-auth-btn">
+            <svg class="google-g-icon" width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+
+          <div class="auth-or-divider"><span>OR SIGN IN WITH EMAIL</span></div>
+
           <form id="signInForm" class="an-gate-form">
             <div>
               <label for="signin-email" class="an-label">EMAIL ADDRESS</label>
@@ -651,7 +673,20 @@
       <!-- TAB 2: CREATE ACCOUNT FORM -->
       <div id="authPanelSignUp" class="auth-tab-panel" hidden>
         <div class="an-card">
-          <p class="an-gate-desc">Create a driver profile to save your 108-stage progress and post verified comments.</p>
+          <p class="an-gate-desc">Create a driver profile with <b>Google</b> in one click or register with your email below.</p>
+
+          <button type="button" id="googleSignUpBtn" class="google-auth-btn">
+            <svg class="google-g-icon" width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span>Sign up with Google</span>
+          </button>
+
+          <div class="auth-or-divider"><span>OR REGISTER WITH EMAIL</span></div>
+
           <form id="signUpForm" class="an-gate-form">
             <div>
               <label for="signup-name" class="an-label">FULL NAME OR CALLSIGN</label>
@@ -700,28 +735,30 @@
         </div>
       </div>
 
-      <!-- TAB 3: HOW TO SET UP LOGIN (VERCEL + FIREBASE STEP-BY-STEP GUIDE) -->
+      <!-- TAB 3: HOW TO SET UP LOGIN (VERCEL + FIREBASE GOOGLE SIGN-IN GUIDE) -->
       <div id="authPanelSetup" class="auth-tab-panel" hidden>
         <div class="an-card auth-setup-guide">
-          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 8px">HOW USER LOGIN &amp; GUEST MODE WORK ON VERCEL (NO PHP REQUIRED)</p>
+          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 8px">HOW TO SET UP FIREBASE GOOGLE SIGN-IN ON VERCEL (NO PHP REQUIRED)</p>
           <ol class="auth-steps-list">
             <li>
-              <strong>1. Built-In Instant Mode (Active Right Now):</strong>
-              Works out-of-the-box on Vercel with zero backend setup. Users can <b>Create Account</b>, <b>Sign In</b> (passwords hashed via WebCrypto <code>SHA-256</code> in <code>localStorage</code> + synced across tabs via <code>BroadcastChannel</code>), or <b>Play &amp; Comment as a Guest</b> immediately.
-            </li>
-            <li>
-              <strong>2. Connect Global Cloud Auth &amp; Database (Firebase on Vercel — Free Tier):</strong>
-              Because Vercel static sites don't use PHP, the industry standard for shared cross-device logins &amp; global comments is <b>Firebase Authentication + Cloud Firestore</b>:
+              <strong>1. Enable Google Sign-In in Firebase Console:</strong>
               <ul>
-                <li>Go to <code>console.firebase.google.com</code> → <b>Create a project</b> → Register a <b>Web App (<code>&lt;/&gt;</code>)</b>.</li>
-                <li>In <b>Build → Authentication → Sign-in method</b>, enable <b>Email/Password</b> (and optionally <b>Anonymous</b> for guests).</li>
-                <li>In <b>Build → Firestore Database</b>, click <b>Create database</b> and allow reads/writes to the <code>comments</code> collection.</li>
-                <li>In <b>Authentication → Settings → Authorized domains</b>, add your <code>*.vercel.app</code> domain.</li>
+                <li>Go to <code>console.firebase.google.com</code> → Create or select your project → Register a <b>Web App (<code>&lt;/&gt;</code>)</b>.</li>
+                <li>Open <b>Build → Authentication → Sign-in method</b> → Click <b>Add new provider</b> → Select <b>Google</b>.</li>
+                <li>Toggle <b>Enable</b> ON, select your <b>Project support email</b>, and click <b>Save</b>.</li>
+                <li><i>(Optional)</i> Enable <b>Email/Password</b> and create a <b>Cloud Firestore</b> database for global comments.</li>
               </ul>
             </li>
             <li>
-              <strong>3. Paste Your Firebase Config Below (Or in <code>app.js</code>):</strong>
-              Paste your Firebase Web SDK JSON object below to activate live Firebase Cloud Auth &amp; Firestore on this deployment:
+              <strong>2. Authorize Your Vercel Domain (Required for Google Popup):</strong>
+              <ul>
+                <li>In Firebase Console, go to <b>Authentication → Settings → Authorized domains</b>.</li>
+                <li>Click <b>Add domain</b> and enter your Vercel hostname (e.g. <code>the-park-task.vercel.app</code> — <b>do NOT include <code>https://</code> or port numbers</b>) plus <code>localhost</code> for local testing.</li>
+              </ul>
+            </li>
+            <li>
+              <strong>3. Paste Your Firebase Config JSON Below (Or in <code>DEFAULT_FIREBASE_CONFIG</code> in <code>app.js</code>):</strong>
+              Copy your <code>firebaseConfig</code> object from <b>Project Settings → General → Your apps</b> and save it below to activate live <b>Google Sign-In</b> (`signInWithPopup` + `GoogleAuthProvider`):
             </li>
           </ol>
 

@@ -2965,11 +2965,26 @@ function syncAuthUI() {
         .join('')
         .toUpperCase()
         .slice(0, 2) || 'DR';
-      document.getElementById('authAvatarInitials').textContent = initials;
+      const avatarInitEl = document.getElementById('authAvatarInitials');
+      const avatarImgEl = document.getElementById('authAvatarImg');
+      if (user.photoURL && avatarImgEl && avatarInitEl) {
+        avatarImgEl.src = user.photoURL;
+        avatarImgEl.hidden = false;
+        avatarInitEl.hidden = true;
+      } else if (avatarInitEl && avatarImgEl) {
+        avatarInitEl.textContent = initials;
+        avatarInitEl.hidden = false;
+        avatarImgEl.hidden = true;
+      }
       document.getElementById('authProfileName').textContent = user.name;
       document.getElementById('authProfileEmail').textContent = user.email;
       document.getElementById('authStatClears').textContent = `${clearedBays.size} / ${BAYS.length}`;
-      document.getElementById('authStatProvider').textContent = hasFirebaseCfg ? 'Firebase Cloud + Local' : 'Built-In WebCrypto Auth';
+      document.getElementById('authStatProvider').textContent =
+        user.provider === 'google.com'
+          ? 'Google Account (Firebase)'
+          : hasFirebaseCfg
+            ? 'Firebase Cloud + Local'
+            : 'Built-In WebCrypto Auth';
     } else {
       profileCard.hidden = true;
     }
@@ -3027,8 +3042,8 @@ document.getElementById('continueGuestBtn')?.addEventListener('click', () => {
   setCoachCue(`Playing as ${getGuestNickname()} — Guests can play all 108 stages & post in Comments!`, 'ok');
 });
 
-// Optional Live Firebase Cloud Bridge (dynamically connects Firebase Auth + Firestore when configured)
-let fbCloud = null; // { auth, db, fns }
+// Optional Live Firebase Cloud Bridge (dynamically connects Firebase Google Auth + Firestore when configured)
+let fbCloud = null; // { auth, db, googleProvider, authMod, fsMod }
 
 async function initFirebaseCloudIfConfigured() {
   const raw = localStorage.getItem(FIREBASE_CFG_KEY);
@@ -3047,7 +3062,26 @@ async function initFirebaseCloudIfConfigured() {
     const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(cfg);
     const auth = authMod.getAuth(app);
     const db = fsMod.getFirestore(app);
-    fbCloud = { auth, db, authMod, fsMod };
+    const googleProvider = new authMod.GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+    fbCloud = { auth, db, googleProvider, authMod, fsMod };
+
+    // Observe Firebase Auth state changes (automatically syncs Google Sign-In popup & redirect users)
+    authMod.onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        const providerId = fbUser.providerData?.[0]?.providerId || 'google.com';
+        setCurrentUser({
+          uid: fbUser.uid,
+          name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Google Driver'),
+          email: fbUser.email || '',
+          photoURL: fbUser.photoURL || '',
+          provider: providerId
+        });
+      }
+    });
+
+    // Complete Google Sign-In redirect if returning from mobile redirect flow
+    authMod.getRedirectResult(auth).catch(() => {});
 
     // Subscribe to real-time Firestore comments collection if available
     const q = fsMod.query(fsMod.collection(db, 'comments'), fsMod.orderBy('createdAtMs', 'desc'), fsMod.limit(80));
@@ -3083,6 +3117,65 @@ async function initFirebaseCloudIfConfigured() {
     return null;
   }
 }
+
+async function handleGoogleSignIn(statusElId = 'signInStatus') {
+  const statusEl = document.getElementById(statusElId);
+  if (!fbCloud) {
+    await initFirebaseCloudIfConfigured();
+  }
+
+  if (fbCloud?.auth && fbCloud?.googleProvider) {
+    try {
+      if (statusEl) {
+        statusEl.style.color = '#ffc570';
+        statusEl.textContent = 'Opening Google Sign-In popup…';
+      }
+      const result = await fbCloud.authMod.signInWithPopup(fbCloud.auth, fbCloud.googleProvider);
+      const user = result.user;
+      const displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'Google Driver');
+      setCurrentUser({
+        uid: user.uid,
+        name: displayName,
+        email: user.email || '',
+        photoURL: user.photoURL || '',
+        provider: 'google.com'
+      });
+      if (statusEl) {
+        statusEl.style.color = '#4ade80';
+        statusEl.textContent = `✓ Signed in with Google as ${displayName}!`;
+      }
+      setCoachCue(`✓ Signed in with Google as ${displayName}!`, 'ok');
+    } catch (error) {
+      if (error?.code === 'auth/popup-blocked') {
+        await fbCloud.authMod.signInWithRedirect(fbCloud.auth, fbCloud.googleProvider);
+        return;
+      }
+      if (statusEl) {
+        statusEl.style.color = '#ff7b7b';
+        if (error?.code === 'auth/unauthorized-domain') {
+          statusEl.textContent = `Domain "${location.hostname}" is not authorized yet in Firebase Console → Authentication → Settings → Authorized domains.`;
+        } else {
+          statusEl.textContent = error?.message || 'Google Sign-In failed. Check your Firebase config in HOW TO SET UP LOGIN.';
+        }
+      }
+    }
+    return;
+  }
+
+  // If Firebase Config is not pasted yet, guide the admin to the Setup tab to paste their Firebase Config JSON
+  switchAuthTab('setup');
+  const fbInput = document.getElementById('firebaseConfigInput');
+  const fbStatus = document.getElementById('firebaseConfigStatus');
+  if (fbStatus) {
+    fbStatus.style.color = '#ffc570';
+    fbStatus.textContent =
+      'Paste your Firebase Web Config JSON above and click SAVE CLOUD CONFIG to activate live Google Sign-In!';
+  }
+  setTimeout(() => fbInput?.focus(), 60);
+}
+
+document.getElementById('googleSignInBtn')?.addEventListener('click', () => handleGoogleSignIn('signInStatus'));
+document.getElementById('googleSignUpBtn')?.addEventListener('click', () => handleGoogleSignIn('signUpStatus'));
 
 // Sign Out button
 document.getElementById('authSignOutBtn')?.addEventListener('click', async () => {
