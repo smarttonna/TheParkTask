@@ -3027,8 +3027,68 @@ document.getElementById('continueGuestBtn')?.addEventListener('click', () => {
   setCoachCue(`Playing as ${getGuestNickname()} — Guests can play all 108 stages & post in Comments!`, 'ok');
 });
 
+// Optional Live Firebase Cloud Bridge (dynamically connects Firebase Auth + Firestore when configured)
+let fbCloud = null; // { auth, db, fns }
+
+async function initFirebaseCloudIfConfigured() {
+  const raw = localStorage.getItem(FIREBASE_CFG_KEY);
+  if (!raw) {
+    fbCloud = null;
+    return null;
+  }
+  try {
+    const cfg = JSON.parse(raw);
+    if (!cfg.apiKey || !cfg.projectId) return null;
+    const [appMod, authMod, fsMod] = await Promise.all([
+      import('https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js'),
+      import('https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js')
+    ]);
+    const app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(cfg);
+    const auth = authMod.getAuth(app);
+    const db = fsMod.getFirestore(app);
+    fbCloud = { auth, db, authMod, fsMod };
+
+    // Subscribe to real-time Firestore comments collection if available
+    const q = fsMod.query(fsMod.collection(db, 'comments'), fsMod.orderBy('createdAtMs', 'desc'), fsMod.limit(80));
+    fsMod.onSnapshot(
+      q,
+      (snap) => {
+        const cloudComments = [];
+        snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          cloudComments.push({
+            id: docSnap.id,
+            author: d.author || 'Guest Driver',
+            role: d.role || 'guest',
+            stageId: d.stageId || '001',
+            text: d.text || '',
+            likes: Number(d.likes || 0),
+            ts: d.ts || 'Cloud'
+          });
+        });
+        if (cloudComments.length) {
+          saveComments(cloudComments);
+          renderChatComments();
+        }
+      },
+      () => {
+        // Ignore Firestore permission/offline errors and keep local comments active
+      }
+    );
+    syncAuthUI();
+    return fbCloud;
+  } catch {
+    fbCloud = null;
+    return null;
+  }
+}
+
 // Sign Out button
-document.getElementById('authSignOutBtn')?.addEventListener('click', () => {
+document.getElementById('authSignOutBtn')?.addEventListener('click', async () => {
+  if (fbCloud?.auth) {
+    try { await fbCloud.authMod.signOut(fbCloud.auth); } catch {}
+  }
   setCurrentUser(null);
   const status = document.getElementById('signInStatus');
   if (status) {
@@ -3054,6 +3114,19 @@ document.getElementById('signUpForm')?.addEventListener('submit', async (e) => {
     statusEl.style.color = '#ff7b7b';
     statusEl.textContent = 'Please provide your name, email, and a password of at least 6 characters.';
     return;
+  }
+
+  if (fbCloud?.auth) {
+    try {
+      const cred = await fbCloud.authMod.createUserWithEmailAndPassword(fbCloud.auth, email, pw);
+      if (cred.user && fbCloud.authMod.updateProfile) {
+        await fbCloud.authMod.updateProfile(cred.user, { displayName: name });
+      }
+    } catch (err) {
+      statusEl.style.color = '#ff7b7b';
+      statusEl.textContent = err?.message || 'Firebase Sign-Up error — check your Firebase console settings.';
+      return;
+    }
   }
 
   const users = loadUsersDB();
@@ -3086,12 +3159,27 @@ document.getElementById('signInForm')?.addEventListener('submit', async (e) => {
 
   const email = emailEl.value.trim().toLowerCase();
   const pw = pwEl.value;
+
+  if (fbCloud?.auth) {
+    try {
+      const cred = await fbCloud.authMod.signInWithEmailAndPassword(fbCloud.auth, email, pw);
+      const displayName = cred.user?.displayName || email.split('@')[0];
+      setCurrentUser({ name: displayName, email });
+      pwEl.value = '';
+      statusEl.style.color = '#4ade80';
+      statusEl.textContent = `✓ Welcome back, ${displayName} (Firebase Cloud)!`;
+      setCoachCue(`✓ Welcome back, ${displayName}!`, 'ok');
+      return;
+    } catch {
+      // Fall back to local WebCrypto DB check if account was created locally
+    }
+  }
+
   const users = loadUsersDB();
   const record = users[email];
   const candidateHash = await sha256Hex(`${email}::${pw}`);
 
   if (!record) {
-    // Friendly onboarding: if account doesn't exist yet, guide or auto-provision if valid
     statusEl.style.color = '#ff7b7b';
     statusEl.textContent = 'No account found for that email yet — switch to CREATE ACCOUNT tab to register in 5 seconds!';
     return;
@@ -3127,7 +3215,7 @@ if (fbCfgInput) {
   if (existingCfg) fbCfgInput.value = existingCfg;
 }
 
-document.getElementById('firebaseConfigForm')?.addEventListener('submit', (e) => {
+document.getElementById('firebaseConfigForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!fbCfgInput || !fbCfgStatus) return;
   const raw = fbCfgInput.value.trim();
@@ -3138,7 +3226,8 @@ document.getElementById('firebaseConfigForm')?.addEventListener('submit', (e) =>
     }
     localStorage.setItem(FIREBASE_CFG_KEY, JSON.stringify(parsed, null, 2));
     fbCfgStatus.style.color = '#4ade80';
-    fbCfgStatus.textContent = `✓ Firebase config saved for project "${parsed.projectId}".`;
+    fbCfgStatus.textContent = `✓ Firebase config saved for project "${parsed.projectId}" — connecting SDK…`;
+    await initFirebaseCloudIfConfigured();
     syncAuthUI();
   } catch {
     fbCfgStatus.style.color = '#ff7b7b';
@@ -3148,6 +3237,7 @@ document.getElementById('firebaseConfigForm')?.addEventListener('submit', (e) =>
 
 document.getElementById('clearFirebaseConfigBtn')?.addEventListener('click', () => {
   localStorage.removeItem(FIREBASE_CFG_KEY);
+  fbCloud = null;
   if (fbCfgInput) fbCfgInput.value = '';
   if (fbCfgStatus) {
     fbCfgStatus.style.color = '#ffc570';
@@ -3370,6 +3460,16 @@ chatFormEl?.addEventListener('submit', (e) => {
   chatInputEl.value = '';
   renderChatComments();
   communityChannel?.postMessage({ type: 'comments_updated' });
+
+  // Also write to Cloud Firestore if Firebase Cloud is configured
+  if (fbCloud?.db) {
+    fbCloud.fsMod
+      .addDoc(fbCloud.fsMod.collection(fbCloud.db, 'comments'), {
+        ...newComment,
+        createdAtMs: Date.now()
+      })
+      .catch(() => {});
+  }
 });
 
 communityChannel?.addEventListener('message', (ev) => {
@@ -3410,4 +3510,5 @@ resizeCanvas();
 syncAdminGateUI();
 syncAuthUI();
 renderChatComments();
+initFirebaseCloudIfConfigured();
 requestAnimationFrame(loop);
