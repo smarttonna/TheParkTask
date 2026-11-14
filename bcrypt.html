@@ -235,7 +235,10 @@
         <p class="brand-kicker">CLIENT-SIDE BCRYPT · VERCEL &amp; PHPMYADMIN READY</p>
         <h1>Bcrypt Hash Generator</h1>
       </div>
-      <a class="back-link" href="./">← Back to TheParkTask</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="back-link" href="./index.html">← Parking Academy</a>
+        <a class="back-link" href="./arkanoid.html">Play Arkanoid →</a>
+      </div>
     </header>
 
     <section class="card" aria-labelledby="genTitle">
@@ -246,7 +249,7 @@
         <div class="row">
           <div>
             <label for="genPassword">PLAINTEXT PASSWORD</label>
-            <input type="password" id="genPassword" placeholder="Enter password to hash..." autocomplete="off" required />
+            <input type="password" id="genPassword" name="password" placeholder="Enter password to hash..." autocomplete="new-password" required />
           </div>
           <div>
             <label for="genCost">COST</label>

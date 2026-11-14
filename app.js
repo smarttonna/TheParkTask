@@ -729,12 +729,20 @@ class GameAnalytics {
       clears: 0,
       demos: 0,
       collisions: 0,
+      arkanoidRuns: 0,
+      arkanoidHigh: 0,
       scoreSum: 0,
       scoreCount: 0,
       stages: {},
       events: []
     };
-    this.serverData = null;
+  }
+
+  reloadFromStorage() {
+    const raw = JSON.parse(localStorage.getItem(ANALYTICS_STORAGE_KEY) || 'null');
+    if (raw && typeof raw === 'object') {
+      this.data = { ...this.data, ...raw };
+    }
   }
 
   save() {
@@ -762,24 +770,6 @@ class GameAnalytics {
     this.data.events = this.data.events.slice(0, 40);
   }
 
-  async syncServer(payload) {
-    try {
-      const res = await fetch('./analytics_api.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, visitorId: this.visitorId })
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json && typeof json.visits === 'number') {
-          this.serverData = json;
-        }
-      }
-    } catch {
-      // Static host (Vercel/GitHub Pages) fallback: uses localStorage + Vercel Insights
-    }
-  }
-
   trackVercel(eventName, props = {}) {
     if (typeof window.va === 'function') {
       try { window.va('event', { name: eventName, data: props }); } catch {}
@@ -787,56 +777,43 @@ class GameAnalytics {
   }
 
   trackVisit() {
+    this.reloadFromStorage();
     this.data.visits++;
-    this.logEvent('Visitor session started');
+    this.logEvent('Visitor session started (Parking Academy)');
     this.save();
-    this.trackVercel('session_start');
-    this.syncServer({ type: 'visit', label: 'Visitor session started' });
+    this.trackVercel('session_start', { page: 'parking' });
   }
 
   trackAttempt(bay) {
+    this.reloadFromStorage();
     this.data.attempts++;
     const st = this.ensureStage(bay);
     st.attempts++;
     this.save();
     this.trackVercel('stage_attempt', { stage: bay.id, name: `${bay.name} ${bay.surname}` });
-    this.syncServer({
-      type: 'attempt',
-      stageId: bay.id,
-      stageName: `${bay.name} ${bay.surname}`
-    });
   }
 
   trackDemo(bay) {
+    this.reloadFromStorage();
     this.data.demos++;
     const label = `Watched Auto-Demo on Stage ${bay.id} (${bay.name} ${bay.surname})`;
     this.logEvent(label);
     this.save();
     this.trackVercel('demo_watch', { stage: bay.id });
-    this.syncServer({
-      type: 'demo',
-      stageId: bay.id,
-      stageName: `${bay.name} ${bay.surname}`,
-      label
-    });
   }
 
   trackCollision(bay, obsName) {
+    this.reloadFromStorage();
     this.data.collisions++;
     const st = this.ensureStage(bay);
     st.collisions++;
     const label = `Stage ${bay.id}: Bumped ${obsName}`;
     this.logEvent(label);
     this.save();
-    this.syncServer({
-      type: 'collision',
-      stageId: bay.id,
-      stageName: `${bay.name} ${bay.surname}`,
-      label
-    });
   }
 
   trackClear(bay, score, stars, timeSec) {
+    this.reloadFromStorage();
     this.data.clears++;
     this.data.scoreSum += score;
     this.data.scoreCount++;
@@ -848,27 +825,16 @@ class GameAnalytics {
     this.logEvent(label);
     this.save();
     this.trackVercel('stage_clear', { stage: bay.id, score, stars, timeSec });
-    this.syncServer({
-      type: 'clear',
-      stageId: bay.id,
-      stageName: `${bay.name} ${bay.surname}`,
-      score,
-      stars,
-      timeSec,
-      label
-    });
   }
 
   tickPlayTime(sec) {
+    this.reloadFromStorage();
     this.data.totalPlaySec += sec;
     this.save();
-    this.syncServer({ type: 'ping', sec });
   }
 
   getSnapshot() {
-    if (this.serverData && this.serverData.visits >= this.data.visits) {
-      return { ...this.serverData, source: 'SERVER + LOCAL TELEMETRY' };
-    }
+    this.reloadFromStorage();
     const avgScore = this.data.scoreCount > 0 ? Math.round(this.data.scoreSum / this.data.scoreCount) : 0;
     return {
       visits: this.data.visits,
@@ -878,10 +844,12 @@ class GameAnalytics {
       clears: this.data.clears,
       demos: this.data.demos,
       collisions: this.data.collisions,
+      arkanoidRuns: this.data.arkanoidRuns || 0,
+      arkanoidHigh: this.data.arkanoidHigh || 0,
       avgScore,
       stages: this.data.stages,
       events: this.data.events,
-      source: 'BROWSER + VERCEL TELEMETRY'
+      source: 'ADMIN UNLOCKED · VERCEL & BROWSER TELEMETRY'
     };
   }
 }
@@ -2118,7 +2086,64 @@ function bindPadBtn(id, keyProp) {
 bindPadBtn('btnBrake', 'brake');
 bindPadBtn('btnGas', 'gas');
 
-// Visitor & Gameplay Analytics Modal Renderer
+// Visitor & Gameplay Analytics Modal Renderer (Admin Password Protected)
+const ADMIN_AUTH_SESSION_KEY = 'theparktask_admin_auth_v1';
+const ADMIN_PW_HASH_KEY = 'theparktask_admin_pw_hash_v1';
+const DEFAULT_ADMIN_PW = 'admin2026';
+
+async function sha256Hex(str) {
+  if (globalThis.crypto?.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Fallback deterministic digest if Web Crypto is unavailable
+  let h1 = 0xdeadbeef ^ str.length;
+  let h2 = 0x41c6ce57 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+
+async function verifyAdminPassword(candidate) {
+  const storedHash = localStorage.getItem(ADMIN_PW_HASH_KEY) || (await sha256Hex(DEFAULT_ADMIN_PW));
+  const candidateHash = await sha256Hex(candidate);
+  return candidateHash === storedHash;
+}
+
+function isAdminUnlocked() {
+  return sessionStorage.getItem(ADMIN_AUTH_SESSION_KEY) === '1';
+}
+
+function syncAdminGateUI() {
+  const unlocked = isAdminUnlocked();
+  const gate = document.getElementById('anAuthGate');
+  const dash = document.getElementById('anDashboardContent');
+  const btnExport = document.getElementById('btnExportAnalytics');
+  const btnLock = document.getElementById('btnLockAnalytics');
+  const menuAnalyticsLabel = document.querySelector('#menuAnalyticsBtn .mn-t');
+
+  if (gate) gate.hidden = unlocked;
+  if (dash) {
+    dash.hidden = !unlocked;
+    if (unlocked) dash.removeAttribute('inert');
+    else dash.setAttribute('inert', '');
+  }
+  if (btnExport) btnExport.hidden = !unlocked;
+  if (btnLock) btnLock.hidden = !unlocked;
+  if (menuAnalyticsLabel) {
+    menuAnalyticsLabel.textContent = unlocked ? 'Visitor & Player Analytics' : 'Admin Analytics (Locked)';
+  }
+  if (!unlocked) {
+    const tag = document.getElementById('anSourceTag');
+    if (tag) tag.textContent = 'ADMIN AUTHENTICATION REQUIRED';
+  }
+}
+
 function formatDuration(totalSec) {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
@@ -2130,6 +2155,13 @@ function formatDuration(totalSec) {
 }
 
 function renderAnalyticsModal() {
+  syncAdminGateUI();
+  if (!isAdminUnlocked()) {
+    const pwInput = document.getElementById('anAdminPassword');
+    setTimeout(() => pwInput?.focus(), 40);
+    return;
+  }
+
   const snap = analytics.getSnapshot();
   const setTxt = (id, val) => {
     const el = document.getElementById(id);
@@ -2142,7 +2174,7 @@ function renderAnalyticsModal() {
   setTxt('anClears', `${snap.clears} (${clearedBays.size}/108)`);
   setTxt('anAttempts', snap.attempts);
   setTxt('anDemos', snap.demos);
-  setTxt('anCollisions', snap.collisions);
+  setTxt('anArkRuns', snap.arkanoidHigh > 0 ? `${snap.arkanoidRuns} (Best: ${snap.arkanoidHigh})` : snap.arkanoidRuns);
   setTxt('anAvgScore', snap.avgScore > 0 ? `${snap.avgScore}%` : '—');
 
   const tbody = document.getElementById('anStageTableBody');
@@ -2190,7 +2222,76 @@ document.getElementById('menuAnalyticsBtn')?.addEventListener('click', () => {
   renderAnalyticsModal();
 });
 
+const anAdminPwInput = document.getElementById('anAdminPassword');
+const anAuthError = document.getElementById('anAuthError');
+const anTogglePwBtn = document.getElementById('anTogglePwBtn');
+
+anAdminPwInput?.addEventListener('input', () => {
+  if (anAuthError) anAuthError.textContent = '';
+  anAdminPwInput.setCustomValidity('');
+});
+
+anAdminPwInput?.addEventListener('blur', () => {
+  if (!anAdminPwInput.value.trim() && anAuthError) {
+    anAuthError.textContent = 'Please enter the administrator password.';
+  }
+});
+
+anTogglePwBtn?.addEventListener('click', () => {
+  if (!anAdminPwInput) return;
+  const showing = anAdminPwInput.type === 'text';
+  anAdminPwInput.type = showing ? 'password' : 'text';
+  anTogglePwBtn.setAttribute('aria-pressed', String(!showing));
+  anTogglePwBtn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  anTogglePwBtn.textContent = showing ? 'SHOW' : 'HIDE';
+});
+
+document.getElementById('anAuthForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!anAdminPwInput) return;
+  const candidate = anAdminPwInput.value;
+  if (!candidate) {
+    if (anAuthError) anAuthError.textContent = 'Administrator password is required.';
+    anAdminPwInput.focus();
+    return;
+  }
+  const ok = await verifyAdminPassword(candidate);
+  if (!ok) {
+    if (anAuthError) anAuthError.textContent = 'Access denied — invalid administrator password.';
+    anAdminPwInput.select();
+    return;
+  }
+  sessionStorage.setItem(ADMIN_AUTH_SESSION_KEY, '1');
+  anAdminPwInput.value = '';
+  if (anAuthError) anAuthError.textContent = '';
+  renderAnalyticsModal();
+});
+
+document.getElementById('btnLockAnalytics')?.addEventListener('click', () => {
+  sessionStorage.removeItem(ADMIN_AUTH_SESSION_KEY);
+  renderAnalyticsModal();
+});
+
+document.getElementById('anChangePwForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('anNewPassword');
+  const status = document.getElementById('anChangePwStatus');
+  if (!input || !status) return;
+  const val = input.value.trim();
+  if (val.length < 6) {
+    status.style.color = '#ff7b7b';
+    status.textContent = 'Password must be at least 6 characters.';
+    return;
+  }
+  const digest = await sha256Hex(val);
+  localStorage.setItem(ADMIN_PW_HASH_KEY, digest);
+  input.value = '';
+  status.style.color = '#4ade80';
+  status.textContent = '✓ Admin password updated for this browser.';
+});
+
 document.getElementById('btnExportAnalytics')?.addEventListener('click', () => {
+  if (!isAdminUnlocked()) return;
   const snap = analytics.getSnapshot();
   const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2200,6 +2301,23 @@ document.getElementById('btnExportAnalytics')?.addEventListener('click', () => {
   a.click();
   URL.revokeObjectURL(url);
 });
+
+// Fallback for browsers without native <dialog closedby="any"> support
+if (!('closedBy' in HTMLDialogElement.prototype)) {
+  document.querySelectorAll('dialog[closedby="any"]').forEach((dialog) => {
+    dialog.addEventListener('click', (event) => {
+      if (event.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      const isDialogContent =
+        rect.top <= event.clientY &&
+        event.clientY <= rect.top + rect.height &&
+        rect.left <= event.clientX &&
+        event.clientX <= rect.left + rect.width;
+      if (isDialogContent) return;
+      dialog.close();
+    });
+  });
+}
 
 // Main Animation Loop
 function loop(now) {
@@ -2213,4 +2331,5 @@ function loop(now) {
 buildDock();
 loadBay(0);
 resizeCanvas();
+syncAdminGateUI();
 requestAnimationFrame(loop);

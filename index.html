@@ -37,6 +37,10 @@
     </div>
 
     <div class="nav right">
+      <a href="./arkanoid.html" class="gl-btn" title="Play Arkanoid: Garuda Shatter 2026">
+        <span>ARKANOID</span>
+      </a>
+
       <button type="button" id="guideBtn" class="gl-btn active" aria-pressed="true" title="Toggle Ackermann steering trajectory guides">
         <span>GUIDE: ON</span>
       </button>
@@ -98,8 +102,16 @@
       </button>
       <button type="button" class="mn-go" style="--i:5" id="menuAnalyticsBtn" commandfor="analyticsModal" command="show-modal">
         <span class="mn-num">05</span>
-        <span class="mn-t">Visitor &amp; Player Analytics</span>
+        <span class="mn-t">Admin Analytics (Locked)</span>
       </button>
+      <a href="./arkanoid.html" class="mn-go" style="--i:6;text-decoration:none">
+        <span class="mn-num">06</span>
+        <span class="mn-t">Arkanoid · Modern Shatter</span>
+      </a>
+      <a href="./bcrypt.html" class="mn-go" style="--i:7;text-decoration:none">
+        <span class="mn-num">07</span>
+        <span class="mn-t">Bcrypt Hash Generator</span>
+      </a>
     </div>
 
     <div class="mn-rule" style="--i:4"></div>
@@ -360,54 +372,117 @@
   </dialog>
 
   <!-- ====================================================================
-       8. VISITOR & GAMEPLAY ANALYTICS MODAL
+       8. VISITOR & GAMEPLAY ANALYTICS MODAL (ADMIN PASSWORD PROTECTED)
        ==================================================================== -->
   <dialog id="analyticsModal" class="garuda-modal" closedby="any" aria-labelledby="analyticsTitle">
     <div class="gal-panel glass-panel an-panel">
       <div class="gal-head">
         <div>
-          <p class="mn-k" style="color:var(--gold-bright);margin-bottom:4px" id="anSourceTag">LIVE TELEMETRY &amp; VISITOR INSIGHTS</p>
+          <p class="mn-k" style="color:var(--gold-bright);margin-bottom:4px" id="anSourceTag">ADMIN TELEMETRY &amp; VISITOR INSIGHTS</p>
           <h2 id="analyticsTitle" class="gal-title">Player &amp; Visitor Analytics</h2>
         </div>
         <div class="gal-controls">
-          <button type="button" class="mn-chip" id="btnExportAnalytics">EXPORT JSON</button>
+          <button type="button" class="mn-chip" id="btnExportAnalytics" hidden>EXPORT JSON</button>
+          <button type="button" class="mn-chip" id="btnLockAnalytics" hidden>LOCK ADMIN</button>
           <button type="button" class="rn-round" commandfor="analyticsModal" command="close" aria-label="Close analytics">✕</button>
         </div>
       </div>
 
-      <div class="an-grid-kpis">
-        <div class="an-kpi"><span class="an-k">TOTAL VISITS</span><strong id="anVisits">1</strong></div>
-        <div class="an-kpi"><span class="an-k">UNIQUE PLAYERS</span><strong id="anVisitors">1</strong></div>
-        <div class="an-kpi"><span class="an-k">PLAY TIME</span><strong id="anPlayTime">0m 0s</strong></div>
-        <div class="an-kpi"><span class="an-k">STAGES CLEARED</span><strong id="anClears">0</strong></div>
-        <div class="an-kpi"><span class="an-k">STAGE ATTEMPTS</span><strong id="anAttempts">0</strong></div>
-        <div class="an-kpi"><span class="an-k">DEMOS WATCHED</span><strong id="anDemos">0</strong></div>
-        <div class="an-kpi"><span class="an-k">COLLISIONS</span><strong id="anCollisions">0</strong></div>
-        <div class="an-kpi"><span class="an-k">AVG PRECISION</span><strong id="anAvgScore">—</strong></div>
+      <!-- Admin Password Gate (Shown when locked) -->
+      <div id="anAuthGate" class="an-auth-gate">
+        <div class="an-auth-card espresso-card">
+          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 6px">RESTRICTED TELEMETRY VAULT</p>
+          <h3 class="an-auth-title">Admin Authentication Required</h3>
+          <p class="an-auth-sub">Enter the administrator access password to unlock visitor metrics and gameplay logs.</p>
+
+          <form id="anAuthForm" class="an-auth-form" novalidate>
+            <div class="an-field-group">
+              <label for="anAdminPassword" class="an-label">ADMIN PASSWORD</label>
+              <div class="an-pw-row">
+                <input
+                  id="anAdminPassword"
+                  name="password"
+                  type="password"
+                  class="gal-search an-pw-input"
+                  autocomplete="current-password"
+                  placeholder="Enter admin password…"
+                  aria-describedby="anAuthError"
+                  required
+                />
+                <button
+                  type="button"
+                  id="anTogglePwBtn"
+                  class="mn-chip an-pw-toggle"
+                  aria-pressed="false"
+                  aria-label="Show password"
+                  aria-describedby="anPwWarn"
+                >SHOW</button>
+                <span id="anPwWarn" class="visually-hidden">Warning: this will display your password on the screen.</span>
+              </div>
+            </div>
+            <p id="anAuthError" class="an-auth-err" role="status" aria-live="polite"></p>
+            <button type="submit" class="sh-cta an-unlock-btn" id="anUnlockBtn">UNLOCK ANALYTICS</button>
+          </form>
+        </div>
       </div>
 
-      <div class="an-body-split">
-        <div class="an-card">
-          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">STAGE BREAKDOWN (MOST PLAYED)</p>
-          <div class="an-table-wrap">
-            <table class="an-table">
-              <thead>
-                <tr>
-                  <th>STAGE</th>
-                  <th>SCENARIO</th>
-                  <th>TRIES</th>
-                  <th>CLEARS</th>
-                  <th>BUMPS</th>
-                  <th>BEST</th>
-                </tr>
-              </thead>
-              <tbody id="anStageTableBody"></tbody>
-            </table>
-          </div>
+      <!-- Unlocked Admin Dashboard Content -->
+      <div id="anDashboardContent" class="an-dashboard-content" hidden inert>
+        <div class="an-grid-kpis">
+          <div class="an-kpi"><span class="an-k">TOTAL VISITS</span><strong id="anVisits">1</strong></div>
+          <div class="an-kpi"><span class="an-k">UNIQUE PLAYERS</span><strong id="anVisitors">1</strong></div>
+          <div class="an-kpi"><span class="an-k">PLAY TIME</span><strong id="anPlayTime">0m 0s</strong></div>
+          <div class="an-kpi"><span class="an-k">STAGES CLEARED</span><strong id="anClears">0</strong></div>
+          <div class="an-kpi"><span class="an-k">STAGE ATTEMPTS</span><strong id="anAttempts">0</strong></div>
+          <div class="an-kpi"><span class="an-k">DEMOS WATCHED</span><strong id="anDemos">0</strong></div>
+          <div class="an-kpi"><span class="an-k">ARKANOID RUNS</span><strong id="anArkRuns">0</strong></div>
+          <div class="an-kpi"><span class="an-k">AVG PRECISION</span><strong id="anAvgScore">—</strong></div>
         </div>
-        <div class="an-card">
-          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">RECENT PLAYER ACTIVITY</p>
-          <div class="an-feed" id="anEventLog"></div>
+
+        <div class="an-body-split">
+          <div class="an-card">
+            <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">STAGE BREAKDOWN (MOST PLAYED)</p>
+            <div class="an-table-wrap">
+              <table class="an-table">
+                <thead>
+                  <tr>
+                    <th>STAGE</th>
+                    <th>SCENARIO</th>
+                    <th>TRIES</th>
+                    <th>CLEARS</th>
+                    <th>BUMPS</th>
+                    <th>BEST</th>
+                  </tr>
+                </thead>
+                <tbody id="anStageTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="an-card">
+            <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">RECENT PLAYER ACTIVITY</p>
+            <div class="an-feed" id="anEventLog"></div>
+
+            <details class="an-pw-details">
+              <summary class="mn-k" style="cursor:pointer;color:var(--gold-bright);margin-top:10px">CHANGE ADMIN PASSWORD</summary>
+              <form id="anChangePwForm" class="an-change-pw-form">
+                <label for="anNewPassword" class="an-label">NEW ADMIN PASSWORD (MIN 6 CHARS)</label>
+                <div class="an-pw-row">
+                  <input
+                    id="anNewPassword"
+                    name="new_password"
+                    type="password"
+                    class="gal-search an-pw-input"
+                    autocomplete="new-password"
+                    minlength="6"
+                    placeholder="New admin password…"
+                    required
+                  />
+                  <button type="submit" class="mn-chip">SAVE KEY</button>
+                </div>
+                <p id="anChangePwStatus" class="an-change-status" role="status" aria-live="polite"></p>
+              </form>
+            </details>
+          </div>
         </div>
       </div>
     </div>

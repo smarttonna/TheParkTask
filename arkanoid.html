@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Arkanoid: Garuda Shatter 2026 — Kinetic Brick Breaker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Geist+Mono:wght@400;500;600;700&family=Geist:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Lexend+Giga:wght@600&family=Montserrat:wght@900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    /* ==========================================================================
+       ARKANOID: GARUDA SHATTER 2026 — SPATIAL HUD & KINETIC ARENA STYLES
+       ========================================================================== */
+    #arkCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    .ark-hud-side {
+      position: fixed;
+      top: calc(92px * var(--ui));
+      z-index: 22;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: calc(196px * var(--ui));
+      pointer-events: none;
+    }
+
+    .ark-hud-side.left {
+      left: var(--pad);
+    }
+
+    .ark-hud-side.right {
+      right: var(--pad);
+    }
+
+    .ark-stat-card {
+      padding: 12px 14px;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .ark-stat-k {
+      font: 700 9.5px/1 "Geist Mono", monospace;
+      letter-spacing: 0.2em;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    .ark-stat-v {
+      font: 700 24px/1.05 "Geist Mono", monospace;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+
+    .ark-stat-v.gold {
+      color: var(--gold-bright);
+    }
+
+    .ark-stat-sub {
+      font: 500 10.5px/1.2 "Geist Mono", monospace;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ark-lives-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .ark-life-pip {
+      width: 18px;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ffc570, #ff6b4a);
+      box-shadow: 0 0 10px rgba(255, 197, 112, 0.65);
+    }
+
+    .ark-life-pip.lost {
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: none;
+    }
+
+    .ark-power-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .ark-power-pill {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      font: 600 10px/1 "Geist Mono", monospace;
+      letter-spacing: 0.1em;
+    }
+
+    .ark-power-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ark-power-bar {
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    .ark-power-bar > i {
+      display: block;
+      height: 100%;
+      width: var(--pct, 100%);
+      background: var(--pw-color, #ffc570);
+      transition: width 0.1s linear;
+    }
+
+    /* Mobile compact top stats strip */
+    .ark-mobile-bar {
+      display: none;
+      position: fixed;
+      top: 56px;
+      left: 8px;
+      right: 8px;
+      z-index: 22;
+      padding: 6px 12px;
+      border-radius: 12px;
+      justify-content: space-between;
+      align-items: center;
+      font: 700 11px/1 "Geist Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+    }
+
+    .ark-mobile-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .ark-mobile-item small {
+      font-size: 8.5px;
+      letter-spacing: 0.14em;
+      color: var(--dim);
+    }
+
+    .ark-mobile-item strong {
+      color: var(--gold-bright);
+      font-size: 13px;
+    }
+
+    /* Bottom Arkanoid action bar */
+    .ark-controls-bar {
+      position: fixed;
+      bottom: calc(56px * var(--ui));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+    }
+
+    .ark-act-btn {
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--ink);
+      font: 700 10.5px/1 "Geist Mono", monospace;
+      letter-spacing: 0.14em;
+      cursor: pointer;
+      transition: transform 0.18s var(--ease), background 0.18s, border-color 0.18s, color 0.18s;
+      white-space: nowrap;
+    }
+
+    .ark-act-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 197, 112, 0.55);
+    }
+
+    .ark-act-btn.primary {
+      background: linear-gradient(135deg, rgba(255, 197, 112, 0.28), rgba(179, 18, 29, 0.55));
+      border-color: rgba(255, 197, 112, 0.65);
+      color: var(--gold-bright);
+    }
+
+    .ark-act-btn.active {
+      background: rgba(74, 222, 128, 0.22);
+      border-color: rgba(74, 222, 128, 0.7);
+      color: #4ade80;
+    }
+
+    /* Stage Select Banner Overlay inside Arena */
+    .ark-overlay-banner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.95);
+      z-index: 28;
+      padding: 24px 32px;
+      border-radius: 22px;
+      text-align: center;
+      min-width: 300px;
+      max-width: min(90vw, 440px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s var(--ease), transform 0.28s var(--spring);
+    }
+
+    .ark-overlay-banner.show {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .ark-overlay-kicker {
+      font: 700 10.5px/1 "Geist Mono", monospace;
+      letter-spacing: 0.24em;
+      color: var(--gold-bright);
+      margin: 0 0 8px;
+    }
+
+    .ark-overlay-title {
+      font: 800 28px/1.1 "Geist", sans-serif;
+      letter-spacing: -0.03em;
+      margin: 0 0 8px;
+      color: var(--ink);
+    }
+
+    .ark-overlay-sub {
+      font: 400 13px/1.45 "Geist", sans-serif;
+      color: var(--muted);
+      margin: 0 0 18px;
+    }
+
+    .ark-overlay-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 900px) {
+      .ark-hud-side {
+        display: none;
+      }
+      .ark-mobile-bar {
+        display: flex;
+      }
+      .coach-cue {
+        top: 102px !important;
+      }
+      .ark-controls-bar {
+        bottom: 10px;
+        gap: 4px;
+        padding: 5px 6px;
+        max-width: calc(100vw - 12px);
+      }
+      .ark-act-btn {
+        height: 32px;
+        padding: 0 8px;
+        font-size: 9px;
+        letter-spacing: 0.08em;
+      }
+    }
+  </style>
+</head>
+<body data-glass="liquid" class="in-place">
+
+  <!-- ====================================================================
+       1. FULL-VIEWPORT KINETIC ARKANOID CANVAS (#app)
+       ==================================================================== -->
+  <main id="app" aria-label="Arkanoid: Garuda Shatter 2026 Arena">
+    <canvas id="arkCanvas"></canvas>
+  </main>
+
+  <!-- ====================================================================
+       2. TOP PERIMETER HUD HEADER (header.top)
+       ==================================================================== -->
+  <header class="top">
+    <a class="logo" href="./index.html" title="Return to Parking Academy">
+      <span class="logo-shield" aria-hidden="true">A</span>
+      <span>GARUDA SHATTER</span>
+      <small>KINETIC ARKANOID</small>
+    </a>
+
+    <div class="brand">
+      <p class="brand-kicker" id="arkSectorKicker">SECTOR 01 · GARUDA CREST</p>
+      <div class="champs" aria-label="ARKANOID">
+        <span class="ch-gold" aria-hidden="true">ARKANOID</span>
+        <span class="ch-face">ARKANOID</span>
+      </div>
+    </div>
+
+    <div class="nav right">
+      <a href="./index.html" class="gl-btn" title="Switch to Precision Parking Academy">
+        <span>← PARKING</span>
+      </a>
+
+      <button type="button" id="aiBtn" class="gl-btn" aria-pressed="false" title="Toggle AI Auto-Pilot Demo">
+        <span>AI PILOT: OFF</span>
+      </button>
+
+      <button type="button" id="sfxBtn" class="gl-btn active" aria-pressed="true" title="Toggle Synth Audio">
+        <span>SFX: ON</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile Compact Telemetry Strip -->
+  <div class="ark-mobile-bar glass-panel" aria-hidden="true">
+    <div class="ark-mobile-item"><small>SCORE</small><strong id="mScore">000000</strong></div>
+    <div class="ark-mobile-item"><small>COMBO</small><strong id="mCombo">1×</strong></div>
+    <div class="ark-mobile-item"><small>BRICKS</small><strong id="mBricks">0</strong></div>
+    <div class="ark-mobile-item"><small>CORES</small><strong id="mLives">3</strong></div>
+  </div>
+
+  <!-- Live Tactical Status Pill -->
+  <div id="coachCue" class="coach-cue glass-panel" role="status" aria-live="polite">
+    <span class="cue-dot"></span>
+    <span id="arkCueText">Move Vaus paddle with Mouse / Touch / A·D and press SPACE or Tap LAUNCH to release the plasma core.</span>
+  </div>
+
+  <!-- ====================================================================
+       3. TOP-RIGHT MENU TRIGGER & CLIP-PATH MORPH DRAWER
+       ==================================================================== -->
+  <button type="button" id="menuBtn" class="rn-round" aria-label="Toggle menu" aria-expanded="false" aria-controls="mainMenu">
+    <svg class="mn-i mn-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <line x1="4" y1="7" x2="20" y2="7"></line>
+      <line x1="4" y1="12" x2="20" y2="12"></line>
+      <line x1="8" y1="17" x2="20" y2="17"></line>
+    </svg>
+    <svg class="mn-i mn-shut" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+    </svg>
+  </button>
+
+  <nav id="mainMenu" class="mn-panel espresso-card" aria-label="Arkanoid Menu">
+    <p class="mn-k" style="--i:0">GARUDA SHATTER · ARKANOID 2026</p>
+    <div class="mn-list">
+      <button type="button" class="mn-go" style="--i:1" commandfor="arkStagesModal" command="show-modal">
+        <span class="mn-num">01</span>
+        <span class="mn-t">All 12 Kinetic Sectors</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:2" commandfor="arkManualModal" command="show-modal">
+        <span class="mn-num">02</span>
+        <span class="mn-t">Power-Ups &amp; Vaus Physics</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:3" id="menuRestartSectorBtn">
+        <span class="mn-num">03</span>
+        <span class="mn-t">Restart Current Sector</span>
+      </button>
+      <button type="button" class="mn-go" style="--i:4" id="menuAnalyticsBtn" commandfor="analyticsModal" command="show-modal">
+        <span class="mn-num">04</span>
+        <span class="mn-t">Admin Analytics (Locked)</span>
+      </button>
+      <a href="./index.html" class="mn-go" style="--i:5;text-decoration:none">
+        <span class="mn-num">05</span>
+        <span class="mn-t">Precision Parking Academy</span>
+      </a>
+      <a href="./bcrypt.html" class="mn-go" style="--i:6;text-decoration:none">
+        <span class="mn-num">06</span>
+        <span class="mn-t">Bcrypt Hash Generator</span>
+      </a>
+    </div>
+
+    <div class="mn-rule" style="--i:5"></div>
+    <p class="mn-k" style="--i:6">CONTROLS &amp; AMBIENCE</p>
+    <p class="mn-controls-hint" style="--i:7">
+      <b>MOUSE / TOUCH</b> Slide Vaus Paddle<br/>
+      <b>A D / ← →</b> Deflect &nbsp;·&nbsp; <b>SPACE / CLICK</b> Launch &amp; Laser
+    </p>
+    <div class="mn-actions" style="--i:8">
+      <button type="button" class="mn-chip" id="menuAmbBtn">DAY / NIGHT ARENA</button>
+      <button type="button" class="mn-chip" id="menuAiBtn">TOGGLE AI PILOT</button>
+    </div>
+  </nav>
+
+  <!-- ====================================================================
+       4. LEFT & RIGHT FLOATING TELEMETRY CARDS
+       ==================================================================== -->
+  <aside class="ark-hud-side left" aria-label="Score and Multiplier Telemetry">
+    <div class="ark-stat-card glass-panel">
+      <span class="ark-stat-k">MISSION SCORE</span>
+      <strong class="ark-stat-v gold" id="hudScore">000,000</strong>
+      <span class="ark-stat-sub">HIGH: <b id="hudHighScore">000,000</b></span>
+    </div>
+
+    <div class="ark-stat-card glass-panel">
+      <span class="ark-stat-k">COMBO MULTIPLIER</span>
+      <strong class="ark-stat-v" id="hudMultiplier">1×</strong>
+      <span class="ark-stat-sub" id="hudStreakText">STREAK: 0 HITS</span>
+    </div>
+
+    <div class="ark-stat-card glass-panel">
+      <span class="ark-stat-k">VAUS CORES (LIVES)</span>
+      <div class="ark-lives-row" id="hudLivesRow"></div>
+      <span class="ark-stat-sub" id="hudLivesText">3 CORES ACTIVE</span>
+    </div>
+  </aside>
+
+  <aside class="ark-hud-side right" aria-label="Sector and Power-Up Telemetry">
+    <div class="ark-stat-card glass-panel">
+      <span class="ark-stat-k">REMAINING TARGETS</span>
+      <strong class="ark-stat-v" id="hudBricksLeft">00</strong>
+      <span class="ark-stat-sub" id="hudSpeedText">BALL VELOCITY: 520 PX/S</span>
+    </div>
+
+    <div class="ark-stat-card glass-panel">
+      <span class="ark-stat-k">ACTIVE AUGMENTS</span>
+      <div class="ark-power-list" id="hudPowerList">
+        <span class="ark-stat-sub">Collect falling capsules to arm Vaus augments.</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ====================================================================
+       5. CENTER STAGE CLEAR / GAME OVER OVERLAY BANNER
+       ==================================================================== -->
+  <div id="arkBanner" class="ark-overlay-banner espresso-card" role="dialog" aria-live="assertive" aria-labelledby="arkBannerTitle">
+    <p class="ark-overlay-kicker" id="arkBannerKicker">SECTOR CLEARED</p>
+    <h2 class="ark-overlay-title" id="arkBannerTitle">GARUDA CREST SHATTERED</h2>
+    <p class="ark-overlay-sub" id="arkBannerSub">Score Bonus +1,500 · Ready for next kinetic sector.</p>
+    <div class="ark-overlay-actions">
+      <button type="button" class="sh-cta" id="arkBannerPrimaryBtn" style="padding:0 22px;min-height:42px">NEXT SECTOR →</button>
+      <button type="button" class="mn-chip" id="arkBannerSecondaryBtn" style="min-height:42px;padding:0 16px">REPLAY SECTOR</button>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       6. BOTTOM ACTION DOCK & BROADCAST MARQUEE
+       ==================================================================== -->
+  <div class="ark-controls-bar glass-panel" role="toolbar" aria-label="Arkanoid Action Controls">
+    <button type="button" class="ark-act-btn" id="btnPrevSector" title="Previous Sector">◀</button>
+    <button type="button" class="ark-act-btn primary" id="btnLaunchBall">LAUNCH / FIRE</button>
+    <button type="button" class="ark-act-btn" id="btnAiQuick">AI DEMO</button>
+    <button type="button" class="ark-act-btn" id="btnPauseGame">PAUSE</button>
+    <button type="button" class="ark-act-btn" commandfor="arkStagesModal" command="show-modal">SECTORS</button>
+    <button type="button" class="ark-act-btn" id="btnNextSector" title="Next Sector">▶</button>
+  </div>
+
+  <footer class="marquee" aria-hidden="true">
+    <div class="mq-track">
+      <span><b>GARUDA SHATTER 2026</b><i>·</i>KINETIC ARKANOID<i>·</i>DEFLECT AT PADDLE EDGES FOR SHARP ANGLES<i>·</i>SHATTER PLASMA CORES FOR CHAIN DETONATIONS<i>·</i><b>12 SECTORS</b><i>·</i></span>
+      <span><b>GARUDA SHATTER 2026</b><i>·</i>KINETIC ARKANOID<i>·</i>DEFLECT AT PADDLE EDGES FOR SHARP ANGLES<i>·</i>SHATTER PLASMA CORES FOR CHAIN DETONATIONS<i>·</i><b>12 SECTORS</b><i>·</i></span>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       7. SECTOR BROWSER MODAL (<dialog id="arkStagesModal">)
+       ==================================================================== -->
+  <dialog id="arkStagesModal" class="garuda-modal" closedby="any" aria-labelledby="arkStagesTitle">
+    <div class="gal-panel glass-panel">
+      <div class="gal-head">
+        <div>
+          <p class="mn-k" style="color:var(--gold-bright);margin-bottom:4px">12 KINETIC FORMATIONS · CAMPAIGN SELECTOR</p>
+          <h2 id="arkStagesTitle" class="gal-title">Arkanoid Sectors</h2>
+        </div>
+        <div class="gal-controls">
+          <button type="button" class="rn-round" commandfor="arkStagesModal" command="close" aria-label="Close sector browser">✕</button>
+        </div>
+      </div>
+      <div class="gal-grid" id="arkStagesGrid"></div>
+    </div>
+  </dialog>
+
+  <!-- ====================================================================
+       8. POWER-UPS & PHYSICS MANUAL MODAL (<dialog id="arkManualModal">)
+       ==================================================================== -->
+  <dialog id="arkManualModal" class="garuda-modal" closedby="any" aria-labelledby="arkManualTitle">
+    <div class="gal-panel glass-panel" style="max-width:760px">
+      <div class="gal-head">
+        <div>
+          <p class="mn-k" style="color:var(--gold-bright);margin-bottom:4px">TACTICAL DOSSIER · VAUS MECHANICS</p>
+          <h2 id="arkManualTitle" class="gal-title">Power-Ups &amp; Deflection Physics</h2>
+        </div>
+        <div class="gal-controls">
+          <button type="button" class="rn-round" commandfor="arkManualModal" command="close" aria-label="Close manual">✕</button>
+        </div>
+      </div>
+      <div class="an-body-split" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+        <div class="an-card">
+          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">AUGMENT CAPSULES</p>
+          <div class="an-feed">
+            <div class="an-event"><span><b style="color:#38bdf8">[WIDE] EXPAND VAUS</b> — Widens the paddle by 45% for easier edge deflections.</span></div>
+            <div class="an-event"><span><b style="color:#ffc570">[MULTI] TRI-BALL SPLIT</b> — Clones every active plasma ball into 3 simultaneous orbs.</span></div>
+            <div class="an-event"><span><b style="color:#ff5a6e">[LASER] PULSE CANNONS</b> — Arms twin rapid-fire plasma blasters on the Vaus wings.</span></div>
+            <div class="an-event"><span><b style="color:#fb923c">[FIRE] COMET OVERDRIVE</b> — Balls burn straight through bricks without bouncing off them.</span></div>
+            <div class="an-event"><span><b style="color:#c084fc">[MAGNET] GRAV-LOCK</b> — Catches the ball on paddle contact; press SPACE or Tap to aim &amp; fire.</span></div>
+            <div class="an-event"><span><b style="color:#4ade80">[LIFE] +1 VAUS CORE</b> — Restores an extra reserve life (up to 5 cores).</span></div>
+          </div>
+        </div>
+        <div class="an-card">
+          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">BRICK CLASSES &amp; COMBOS</p>
+          <div class="an-feed">
+            <div class="an-event"><span><b>SPECULAR GLASS (1 HP)</b> — Standard kinetic targets; builds your combo streak on every hit.</span></div>
+            <div class="an-event"><span><b>TITANIUM ARMOR (2–3 HP)</b> — Heavy metallic plates that fracture before shattering (+250 pts).</span></div>
+            <div class="an-event"><span><b>PLASMA CORE (BOOM)</b> — Detonates in a shockwave ring, destroying all adjacent bricks!</span></div>
+            <div class="an-event"><span><b>PRISM CRYSTAL (×2)</b> — Boosts your score multiplier by +2× and guarantees a capsule drop.</span></div>
+            <div class="an-event"><span><b>GOLD DEFLECTOR (∞)</b> — Indestructible pinball bumpers that accelerate ball velocity.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ====================================================================
+       9. VISITOR & GAMEPLAY ANALYTICS MODAL (ADMIN PASSWORD PROTECTED)
+       ==================================================================== -->
+  <dialog id="analyticsModal" class="garuda-modal" closedby="any" aria-labelledby="analyticsTitle">
+    <div class="gal-panel glass-panel an-panel">
+      <div class="gal-head">
+        <div>
+          <p class="mn-k" style="color:var(--gold-bright);margin-bottom:4px" id="anSourceTag">ADMIN TELEMETRY &amp; VISITOR INSIGHTS</p>
+          <h2 id="analyticsTitle" class="gal-title">Player &amp; Visitor Analytics</h2>
+        </div>
+        <div class="gal-controls">
+          <button type="button" class="mn-chip" id="btnExportAnalytics" hidden>EXPORT JSON</button>
+          <button type="button" class="mn-chip" id="btnLockAnalytics" hidden>LOCK ADMIN</button>
+          <button type="button" class="rn-round" commandfor="analyticsModal" command="close" aria-label="Close analytics">✕</button>
+        </div>
+      </div>
+
+      <div id="anAuthGate" class="an-auth-gate">
+        <div class="an-auth-card espresso-card">
+          <p class="mn-k" style="color:var(--gold-bright);margin:0 0 6px">RESTRICTED TELEMETRY VAULT</p>
+          <h3 class="an-auth-title">Admin Authentication Required</h3>
+          <p class="an-auth-sub">Enter the administrator access password to unlock visitor metrics and gameplay logs.</p>
+
+          <form id="anAuthForm" class="an-auth-form" novalidate>
+            <div class="an-field-group">
+              <label for="anAdminPassword" class="an-label">ADMIN PASSWORD</label>
+              <div class="an-pw-row">
+                <input
+                  id="anAdminPassword"
+                  name="password"
+                  type="password"
+                  class="gal-search an-pw-input"
+                  autocomplete="current-password"
+                  placeholder="Enter admin password…"
+                  aria-describedby="anAuthError"
+                  required
+                />
+                <button
+                  type="button"
+                  id="anTogglePwBtn"
+                  class="mn-chip an-pw-toggle"
+                  aria-pressed="false"
+                  aria-label="Show password"
+                  aria-describedby="anPwWarn"
+                >SHOW</button>
+                <span id="anPwWarn" class="visually-hidden">Warning: this will display your password on the screen.</span>
+              </div>
+            </div>
+            <p id="anAuthError" class="an-auth-err" role="status" aria-live="polite"></p>
+            <button type="submit" class="sh-cta an-unlock-btn" id="anUnlockBtn">UNLOCK ANALYTICS</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="anDashboardContent" class="an-dashboard-content" hidden inert>
+        <div class="an-grid-kpis">
+          <div class="an-kpi"><span class="an-k">TOTAL VISITS</span><strong id="anVisits">1</strong></div>
+          <div class="an-kpi"><span class="an-k">UNIQUE PLAYERS</span><strong id="anVisitors">1</strong></div>
+          <div class="an-kpi"><span class="an-k">PLAY TIME</span><strong id="anPlayTime">0m 0s</strong></div>
+          <div class="an-kpi"><span class="an-k">PARKING CLEARS</span><strong id="anClears">0</strong></div>
+          <div class="an-kpi"><span class="an-k">ARKANOID RUNS</span><strong id="anArkRuns">0</strong></div>
+          <div class="an-kpi"><span class="an-k">ARKANOID BEST</span><strong id="anArkBest">0</strong></div>
+          <div class="an-kpi"><span class="an-k">DEMOS WATCHED</span><strong id="anDemos">0</strong></div>
+          <div class="an-kpi"><span class="an-k">AVG PRECISION</span><strong id="anAvgScore">—</strong></div>
+        </div>
+
+        <div class="an-body-split">
+          <div class="an-card">
+            <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">STAGE BREAKDOWN (MOST PLAYED)</p>
+            <div class="an-table-wrap">
+              <table class="an-table">
+                <thead>
+                  <tr>
+                    <th>STAGE</th>
+                    <th>SCENARIO</th>
+                    <th>TRIES</th>
+                    <th>CLEARS</th>
+                    <th>BUMPS</th>
+                    <th>BEST</th>
+                  </tr>
+                </thead>
+                <tbody id="anStageTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="an-card">
+            <p class="mn-k" style="color:var(--gold-bright);margin:0 0 10px">RECENT PLAYER ACTIVITY</p>
+            <div class="an-feed" id="anEventLog"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./arkanoid.js"></script>
+</body>
+</html>
